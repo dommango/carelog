@@ -97,7 +97,7 @@ describe('events service', () => {
 
   it('creates an event and writes an audit row', async () => {
     const { adminActor } = await seed();
-    const event = await createEvent(adminActor, eventInput());
+    const { event } = await createEvent(adminActor, eventInput());
 
     expect(event.rawInput).toBe('Gave albuterol nebulizer');
     expect(event.authorId).toBe(adminActor.userId);
@@ -130,8 +130,8 @@ describe('events service', () => {
   it('is idempotent on duplicate idempotencyKey', async () => {
     const { adminActor } = await seed();
     const key = randomUUID();
-    const event1 = await createEvent(adminActor, eventInput({ idempotencyKey: key }));
-    const event2 = await createEvent(
+    const { event: event1 } = await createEvent(adminActor, eventInput({ idempotencyKey: key }));
+    const { event: event2 } = await createEvent(
       adminActor,
       eventInput({ idempotencyKey: key, rawInput: 'Different text' })
     );
@@ -142,7 +142,7 @@ describe('events service', () => {
 
   it('allows admin to update any event', async () => {
     const { adminActor, caregiverActor } = await seed();
-    const event = await createEvent(caregiverActor, eventInput());
+    const { event } = await createEvent(caregiverActor, eventInput());
     const updated = await updateEvent(adminActor, event.id, {
       rawInput: 'Updated by admin',
     });
@@ -158,7 +158,7 @@ describe('events service', () => {
 
   it('allows caregiver to update own event within 24h', async () => {
     const { caregiverActor } = await seed();
-    const event = await createEvent(caregiverActor, eventInput());
+    const { event } = await createEvent(caregiverActor, eventInput());
     const updated = await updateEvent(caregiverActor, event.id, {
       rawInput: 'Updated by caregiver',
     });
@@ -168,7 +168,7 @@ describe('events service', () => {
 
   it('forbids caregiver from updating own event after 24h', async () => {
     const { caregiverActor } = await seed();
-    const event = await createEvent(caregiverActor, eventInput());
+    const { event } = await createEvent(caregiverActor, eventInput());
     const stale = new Date(Date.now() - 25 * 60 * 60 * 1000);
     await prisma.$executeRawUnsafe(
       `UPDATE "care_events" SET "created_at" = $1 WHERE "id" = $2`,
@@ -183,7 +183,7 @@ describe('events service', () => {
 
   it('forbids caregiver from updating another users event', async () => {
     const { caregiverActor, otherActor } = await seed();
-    const event = await createEvent(caregiverActor, eventInput());
+    const { event } = await createEvent(caregiverActor, eventInput());
 
     await expect(
       updateEvent(otherActor, event.id, { rawInput: 'Not yours' })

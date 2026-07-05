@@ -24,6 +24,16 @@ pnpm-debug.log*
 # Testing
 coverage/
 .nyc_output/
+test-results/
+
+# Generated service worker
+apps/web/sw.js
+apps/web/public/sw.js
+
+# Local storage for dev
+storage/
+apps/web/storage/
+apps/worker/storage/
 
 # IDEs
 .vscode/

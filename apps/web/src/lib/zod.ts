@@ -1,7 +1,15 @@
 import { z } from 'zod';
-import { EventCategory, Role } from '@carelog/db';
+import { EventCategory, Role, AttachmentKind } from '@carelog/db';
+
+export const attachmentInputSchema = z.object({
+  id: z.string().uuid(),
+  kind: z.nativeEnum(AttachmentKind),
+  mimeType: z.string(),
+  sizeBytes: z.number().int().optional(),
+});
 
 export const createEventSchema = z.object({
+  id: z.string().uuid().optional(),
   rawInput: z.string().min(1, 'Required'),
   category: z.nativeEnum(EventCategory).optional(),
   occurredAt: z.string().datetime().default(() => new Date().toISOString()),
@@ -9,12 +17,14 @@ export const createEventSchema = z.object({
   scheduleId: z.string().uuid().optional(),
   clientId: z.string().min(1, 'Required'),
   idempotencyKey: z.string().uuid(),
+  attachments: z.array(attachmentInputSchema).max(5).default([]),
 });
 
 export const updateEventSchema = z.object({
   rawInput: z.string().min(1).optional(),
   category: z.nativeEnum(EventCategory).optional(),
   occurredAt: z.string().datetime().optional(),
+  version: z.number().int().optional(),
 });
 
 export const createTemplateSchema = z.object({
@@ -30,6 +40,7 @@ export const inviteSchema = z.object({
 });
 
 export type CreateEventInput = z.infer<typeof createEventSchema>;
+export type AttachmentInput = z.infer<typeof attachmentInputSchema>;
 export type UpdateEventInput = z.infer<typeof updateEventSchema>;
 export type CreateTemplateInput = z.infer<typeof createTemplateSchema>;
 export type InviteInput = z.infer<typeof inviteSchema>;

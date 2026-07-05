@@ -12,6 +12,16 @@ const credentialsSchema = z.object({
   name: z.string().min(1),
 });
 
+async function ensureDevAssignment(userId: string) {
+  const patient = await prisma.patient.findFirst({ orderBy: { createdAt: 'asc' } });
+  if (!patient) return;
+  await prisma.caregiverAssignment.upsert({
+    where: { userId_patientId: { userId, patientId: patient.id } },
+    update: {},
+    create: { userId, patientId: patient.id, role: 'admin' },
+  });
+}
+
 export const {
   handlers: { GET, POST },
   auth,
@@ -65,6 +75,7 @@ export const {
                   data: { email, name },
                 });
               }
+              await ensureDevAssignment(user.id);
               return { id: user.id, email: user.email, name: user.name, image: user.image };
             },
           }),

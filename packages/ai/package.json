@@ -1,0 +1,22 @@
+{
+  "name": "@carelog/ai",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@carelog/db": "workspace:*",
+    "openai": "^4.77.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "typescript": "^5.5.0",
+    "vitest": "^4.1.9"
+  }
+}
