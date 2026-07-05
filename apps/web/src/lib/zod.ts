@@ -39,8 +39,28 @@ export const inviteSchema = z.object({
   patientId: z.string().uuid(),
 });
 
+export const createScheduleSchema = z.object({
+  patientId: z.string().uuid().optional(),
+  templateId: z.string().uuid().optional(),
+  name: z.string().min(1, 'Required'),
+  rrule: z.string().min(1, 'Required'),
+  windowMinutes: z.number().int().min(1).default(90),
+  remindOffsets: z.array(z.number().int()).default([0]),
+  escalation: z
+    .object({
+      afterMinutes: z.number().int().min(1),
+      notify: z.array(z.string().uuid()).min(1),
+      channel: z.enum(['push', 'sms']).default('sms'),
+    })
+    .optional(),
+});
+
+export const updateScheduleSchema = createScheduleSchema.partial().omit({ patientId: true });
+
 export type CreateEventInput = z.infer<typeof createEventSchema>;
 export type AttachmentInput = z.infer<typeof attachmentInputSchema>;
 export type UpdateEventInput = z.infer<typeof updateEventSchema>;
 export type CreateTemplateInput = z.infer<typeof createTemplateSchema>;
 export type InviteInput = z.infer<typeof inviteSchema>;
+export type CreateScheduleInput = z.infer<typeof createScheduleSchema>;
+export type UpdateScheduleInput = z.infer<typeof updateScheduleSchema>;

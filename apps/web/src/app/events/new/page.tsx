@@ -19,12 +19,18 @@ export default function NewEventPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const templateId = searchParams.get('templateId');
+  const scheduleId = searchParams.get('scheduleId');
+  const dueAtParam = searchParams.get('dueAt');
 
   const [category, setCategory] = useState<string>('');
   const [rawInput, setRawInput] = useState('');
-  const [occurredAt, setOccurredAt] = useState(() =>
-    new Date().toISOString().slice(0, 16)
-  );
+  const [occurredAt, setOccurredAt] = useState(() => {
+    if (dueAtParam) {
+      const d = new Date(dueAtParam);
+      if (!isNaN(d.getTime())) return d.toISOString().slice(0, 16);
+    }
+    return new Date().toISOString().slice(0, 16);
+  });
   const [templateName, setTemplateName] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [attachments, setAttachments] = useState<AttachmentDraft[]>([]);
@@ -115,6 +121,7 @@ export default function NewEventPage() {
       category: category || undefined,
       occurredAt: new Date(occurredAt).toISOString(),
       templateId: templateId ?? undefined,
+      scheduleId: scheduleId ?? undefined,
       clientId,
       idempotencyKey,
       attachments: attachmentInputs,

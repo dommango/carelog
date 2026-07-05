@@ -7,7 +7,7 @@ export function buildNormalizationPrompt(context: {
   visionSummaries?: string[];
   patientName?: string;
   medications?: Medication[];
-  schedules?: Array<{ name: string; rrule: string }>;
+  schedules?: Array<{ id: string; name: string; rrule: string; windowMinutes?: number }>;
   capturedAt: Date;
   occurredAt: Date;
 }): string {
@@ -32,7 +32,7 @@ export function buildNormalizationPrompt(context: {
 
   const scheduleSection =
     context.schedules && context.schedules.length > 0
-      ? `\nActive schedules:\n${context.schedules.map((s) => `- ${s.name}`).join('\n')}`
+      ? `\nActive schedules (return scheduleId only if the input clearly matches a schedule whose time window is open around occurredAt):\n${context.schedules.map((s) => `- id=${s.id} name="${s.name}" window=${s.windowMinutes ?? 90}min`).join('\n')}`
       : '';
 
   return `You are a careful caregiver assistant. Convert the caregiver's input into a structured care event.
@@ -52,7 +52,7 @@ Occurred-at hint: ${context.occurredAt.toISOString()}${medSection}${scheduleSect
 --- Raw input ---
 ${context.rawInput ?? '(none)'}${transcriptSection}${visionSection}
 
-Return only the requested JSON object with keys: category, structuredData, confidence, flags.`;
+Return only the requested JSON object with keys: category, structuredData, confidence, flags, scheduleId.`;
 }
 
 export const fewShotExamples = [

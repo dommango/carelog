@@ -1,4 +1,6 @@
 import { prisma, EventStatus, EventCategory, writeAudit, Prisma } from '@carelog/db';
+import { expandSchedule } from '@carelog/queue';
+import { resolveScheduleId } from './resolveScheduleId.js';
 import { transcribeAttachment } from './transcribe.js';
 import { analyzeImage } from './analyzeImage.js';
 import { normalizeEventData } from './normalize.js';
@@ -56,6 +58,7 @@ export async function processEvent(eventId: string): Promise<void> {
   let confidence: number | null = null;
   let flags: string[] = [];
   let aiModelVersion = 'claude-3-5-sonnet-20241022';
+  let suggestedScheduleId: string | null | undefined;
 
   try {
     const hasAiKey = Boolean(process.env.ANTHROPIC_API_KEY);
@@ -71,6 +74,7 @@ export async function processEvent(eventId: string): Promise<void> {
       structuredData = gated.structuredData;
       confidence = gated.confidence;
       flags = gated.flags;
+      suggestedScheduleId = normalized.scheduleId;
     }
   } catch (error) {
     console.error(`[worker] AI normalization failed for event ${eventId}:`, error);
@@ -79,6 +83,8 @@ export async function processEvent(eventId: string): Promise<void> {
   }
 
   const before = { ...refreshed } as Record<string, unknown>;
+
+  const resolvedScheduleId = resolveScheduleId(refreshed.occurredAt, suggestedScheduleId, schedules);
 
   const updated = await prisma.careEvent.update({
     where: { id: eventId },
@@ -89,6 +95,7 @@ export async function processEvent(eventId: string): Promise<void> {
       aiConfidence: confidence,
       aiFlags: flags,
       aiModelVersion,
+      scheduleId: resolvedScheduleId,
       version: { increment: 1 },
     },
   });

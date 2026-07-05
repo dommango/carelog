@@ -67,10 +67,11 @@ export function can(actor: Actor | null, action: Action, resource?: Resource): b
     case 'template:delete':
       return false;
     case 'schedule:create':
-    case 'schedule:read':
     case 'schedule:update':
     case 'schedule:delete':
-      return false;
+      return false; // admin handled above
+    case 'schedule:read':
+      return role === 'caregiver';
     case 'patient:read':
       return true;
     case 'patient:admin':

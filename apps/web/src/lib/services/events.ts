@@ -6,6 +6,7 @@ import { ForbiddenError, NotFoundError } from '@/lib/errors';
 import { CreateEventInput, UpdateEventInput } from '@/lib/zod';
 import { EventStatus, AttachmentKind } from '@carelog/db';
 import { getStorage } from '@carelog/storage';
+import { markAcknowledged } from '@/lib/services/notifications';
 
 export type CreateEventResult = {
   event: Awaited<ReturnType<typeof prisma.careEvent.create>>;
@@ -87,6 +88,17 @@ export async function createEvent(actor: Actor, input: CreateEventInput): Promis
       after: result.event as unknown as Record<string, unknown>,
       clientId: input.clientId,
     });
+
+    // Phase 4: acknowledge any notification for the linked schedule occurrence.
+    if (result.event.scheduleId && result.event.occurredAt) {
+      await markAcknowledged(
+        result.event.id,
+        result.event.scheduleId,
+        result.event.occurredAt
+      ).catch((err) => {
+        console.error('Failed to acknowledge notification:', err);
+      });
+    }
   }
 
   return result;

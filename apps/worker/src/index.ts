@@ -1,5 +1,6 @@
-import { boss, AI_PROCESS_EVENT, start, stop } from '@carelog/queue';
+import { boss, AI_PROCESS_EVENT, NOTIFICATION_TICK, start, stop } from '@carelog/queue';
 import { processEvent } from './pipeline/processEvent.js';
+import { runNotificationTick } from './cron/notifications.js';
 
 async function main() {
   await start();
@@ -11,7 +12,15 @@ async function main() {
     await processEvent(eventId);
   });
 
-  console.log(`[worker] Subscribed to ${AI_PROCESS_EVENT}`);
+  await boss.work(NOTIFICATION_TICK, async (jobs) => {
+    const job = jobs[0];
+    const { now } = job.data as { now?: string };
+    await runNotificationTick(now ? new Date(now) : new Date());
+  });
+
+  await boss.schedule(NOTIFICATION_TICK, '* * * * *', { now: new Date().toISOString() });
+
+  console.log(`[worker] Subscribed to ${AI_PROCESS_EVENT} and ${NOTIFICATION_TICK}`);
 }
 
 async function shutdown(signal: string) {

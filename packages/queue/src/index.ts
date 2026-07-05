@@ -1,5 +1,8 @@
 import PgBoss from 'pg-boss';
 
+export * from './notifications.js';
+export * from './schedules.js';
+
 export const AI_PROCESS_EVENT = 'ai.process_event';
 export const NOTIFICATION_TICK = 'notification.tick';
 

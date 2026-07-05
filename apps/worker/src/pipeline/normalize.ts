@@ -27,7 +27,7 @@ export async function normalizeEventData(context: NormalizeContext) {
     visionSummaries,
     patientName: event.patient.name,
     medications: medications as Array<{ name: string; dose?: string; route?: string; timing?: string }>,
-    schedules: schedules.map((s) => ({ name: s.name, rrule: s.rrule })),
+    schedules: schedules.map((s) => ({ id: s.id, name: s.name, rrule: s.rrule, windowMinutes: s.windowMinutes })),
     capturedAt: event.capturedAt,
     occurredAt: event.occurredAt,
   });

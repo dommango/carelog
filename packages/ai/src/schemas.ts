@@ -6,6 +6,7 @@ export const normalizationOutputSchema = z.object({
   structuredData: z.record(z.string(), z.unknown()),
   confidence: z.number().min(0).max(1),
   flags: z.array(z.string()).default([]),
+  scheduleId: z.string().uuid().optional().nullable(),
 });
 
 export type NormalizationOutput = z.infer<typeof normalizationOutputSchema>;
