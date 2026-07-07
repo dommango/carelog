@@ -208,3 +208,36 @@ export async function markAttachmentUploaded(attachmentId: string): Promise<void
     data: { uploadedAt: new Date() },
   });
 }
+
+export async function confirmEvent(actor: Actor, id: string) {
+  const event = await prisma.careEvent.findUnique({ where: { id } });
+  if (!event) throw new NotFoundError();
+
+  if (!can(actor, 'event:confirm', {
+    type: 'event',
+    patientId: event.patientId,
+    authorId: event.authorId,
+    createdAt: event.createdAt,
+  })) {
+    throw new ForbiddenError();
+  }
+
+  const before = { ...event } as Record<string, unknown>;
+  const updated = await prisma.careEvent.update({
+    where: { id },
+    data: { status: EventStatus.confirmed },
+  });
+
+  await writeAudit({
+    actorType: 'user',
+    actorId: actor.userId,
+    action: 'event.confirm',
+    entityType: 'event',
+    entityId: id,
+    before,
+    after: updated as unknown as Record<string, unknown>,
+    clientId: event.clientId,
+  });
+
+  return updated;
+}

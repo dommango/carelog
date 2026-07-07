@@ -11,6 +11,7 @@ export type Action =
   | 'event:create'
   | 'event:read'
   | 'event:update'
+  | 'event:confirm'
   | 'event:delete'
   | 'template:create'
   | 'template:read'
@@ -58,6 +59,8 @@ export function can(actor: Actor | null, action: Action, resource?: Resource): b
       if (!resource.createdAt) return false;
       // caregivers may edit own events within 24h
       return Date.now() - resource.createdAt.getTime() < 24 * 60 * 60 * 1000;
+    case 'event:confirm':
+      return role === 'caregiver';
     case 'event:delete':
       return false; // append-only; soft-delete is admin-only via patient:admin
     case 'template:create':

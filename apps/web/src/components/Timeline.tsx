@@ -61,6 +61,33 @@ export default function Timeline() {
     };
   }, []);
 
+  const confirmEvent = async (id: string) => {
+    try {
+      const res = await fetch(`/api/events/${id}/confirm`, { method: 'POST' });
+      if (!res.ok) throw new Error('Confirm failed');
+      await localDb.events.update(id, { status: EventStatus.confirmed });
+    } catch (err) {
+      console.error('Failed to confirm event', err);
+    }
+  };
+
+  const fixEvent = async (id: string, currentRawInput: string | null) => {
+    const rawInput = window.prompt('Edit entry:', currentRawInput ?? '');
+    if (rawInput === null) return;
+    try {
+      const res = await fetch(`/api/events/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rawInput }),
+      });
+      if (!res.ok) throw new Error('Update failed');
+      const updated = (await res.json()) as { rawInput: string | null; version: number };
+      await localDb.events.update(id, { rawInput: updated.rawInput, version: updated.version });
+    } catch (err) {
+      console.error('Failed to update event', err);
+    }
+  };
+
   const needsReview = events.filter((e) => e.status === EventStatus.needs_review).slice(0, 20);
 
   const statusBadge = (status: EventStatus) => {
@@ -107,17 +134,35 @@ export default function Timeline() {
 
       {needsReview.length > 0 && (
         <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-          <h2 className="text-sm font-semibold text-orange-900 mb-2">Needs review</h2>
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-sm font-semibold text-orange-900">Needs review</h2>
+            <span className="text-xs text-orange-700">{needsReview.length} awaiting confirmation</span>
+          </div>
           <div className="space-y-2">
             {needsReview.map((event) => (
-              <Link
+              <div
                 key={event.id}
-                href={`/events/${event.id}`}
-                className="block text-sm text-orange-800 hover:underline"
+                className="flex items-center justify-between gap-2 text-sm text-orange-800"
               >
-                {event.category ?? 'note'} — {event.rawInput?.slice(0, 60) ?? ''}
-                {event.rawInput && event.rawInput.length > 60 && '…'}
-              </Link>
+                <span className="truncate">
+                  {event.category ?? 'note'} — {event.rawInput?.slice(0, 60) ?? ''}
+                  {event.rawInput && event.rawInput.length > 60 && '…'}
+                </span>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => confirmEvent(event.id)}
+                    className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs hover:bg-green-200"
+                  >
+                    Confirm
+                  </button>
+                  <button
+                    onClick={() => fixEvent(event.id, event.rawInput)}
+                    className="px-2 py-1 bg-white text-orange-800 border border-orange-200 rounded text-xs hover:bg-orange-100"
+                  >
+                    Fix
+                  </button>
+                </div>
+              </div>
             ))}
           </div>
         </div>

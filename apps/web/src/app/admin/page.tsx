@@ -3,7 +3,8 @@ import { revalidatePath } from 'next/cache';
 import { auth } from '@/auth';
 import { getActor } from '@/lib/policy';
 import { listPatients } from '@/lib/services/patients';
-import { listTemplates, createTemplate } from '@/lib/services/templates';
+import { createTemplate } from '@/lib/services/templates';
+import { listTemplateUsage } from '@/lib/services/reports';
 import { inviteUser, listAssignments } from '@/lib/services/invites';
 import { listSchedules, createSchedule, deleteSchedule } from '@/lib/services/schedules';
 import { createScheduleSchema, createTemplateSchema, inviteSchema } from '@/lib/zod';
@@ -27,7 +28,7 @@ export default async function AdminPage() {
   const adminActor = actor;
 
   const [patient] = await listPatients(adminActor);
-  const templates = await listTemplates(adminActor);
+  const templates = await listTemplateUsage(adminActor);
   const schedules = await listSchedules(adminActor);
 
   const caregivers = await listAssignments(adminActor, patient.id);
@@ -270,6 +271,24 @@ export default async function AdminPage() {
             Create schedule
           </button>
         </form>
+      </section>
+
+      <section className="bg-white p-4 rounded-lg border">
+        <h2 className="font-medium mb-3">Templates</h2>
+        <ul className="divide-y">
+          {templates.map((template) => (
+            <li
+              key={template.id}
+              className="py-2 flex items-center justify-between"
+            >
+              <div>
+                <span>{template.name}</span>
+                <span className="text-sm text-gray-500 ml-2">{template.category}</span>
+              </div>
+              <span className="text-sm text-gray-500">{template.usageCount} uses</span>
+            </li>
+          ))}
+        </ul>
       </section>
 
       <section className="bg-white p-4 rounded-lg border">

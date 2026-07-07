@@ -189,4 +189,31 @@ describe('events service', () => {
       updateEvent(otherActor, event.id, { rawInput: 'Not yours' })
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
+
+  it('allows caregiver to confirm a needs_review event', async () => {
+    const { caregiverActor, caregiverUser, patient } = await seed();
+    const event = await prisma.careEvent.create({
+      data: {
+        id: randomUUID(),
+        patientId: patient.id,
+        authorId: caregiverUser.id,
+        rawInput: 'Needs review',
+        status: EventStatus.needs_review,
+        occurredAt: new Date(),
+        capturedAt: new Date(),
+        clientId: 'test',
+        idempotencyKey: randomUUID(),
+      },
+    });
+
+    const confirmed = await confirmEvent(caregiverActor, event.id);
+    expect(confirmed.status).toBe(EventStatus.confirmed);
+
+    const audits = await prisma.auditLog.findMany({
+      where: { entityType: 'event', entityId: event.id, action: 'event.confirm' },
+    });
+    expect(audits).toHaveLength(1);
+  });
 });
+
+import { confirmEvent } from './events';

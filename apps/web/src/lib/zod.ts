@@ -57,6 +57,14 @@ export const createScheduleSchema = z.object({
 
 export const updateScheduleSchema = createScheduleSchema.partial().omit({ patientId: true });
 
+export const reportQuerySchema = z.object({
+  patientId: z.string().uuid().optional(),
+  start: z.string().datetime(),
+  end: z.string().datetime(),
+  category: z.nativeEnum(EventCategory).optional(),
+  authorId: z.string().uuid().optional(),
+});
+
 export type CreateEventInput = z.infer<typeof createEventSchema>;
 export type AttachmentInput = z.infer<typeof attachmentInputSchema>;
 export type UpdateEventInput = z.infer<typeof updateEventSchema>;
@@ -64,3 +72,4 @@ export type CreateTemplateInput = z.infer<typeof createTemplateSchema>;
 export type InviteInput = z.infer<typeof inviteSchema>;
 export type CreateScheduleInput = z.infer<typeof createScheduleSchema>;
 export type UpdateScheduleInput = z.infer<typeof updateScheduleSchema>;
+export type ReportQueryInput = z.infer<typeof reportQuerySchema>;
