@@ -1,9 +1,9 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 
 const ADMIN_EMAIL = 'admin@carelog.local';
 const ADMIN_NAME = 'Admin User';
 
-async function signIn(page: any) {
+async function signIn(page: Page) {
   const res = await page.request.post('/api/auth/test-login', {
     data: { email: ADMIN_EMAIL, name: ADMIN_NAME },
   });
@@ -76,7 +76,7 @@ test('airplane-mode capture syncs exactly one non-duplicated event', async ({ pa
     return await test.localDb.events.get(id);
   }, offlineEventId);
   expect(offlineEvent).toBeTruthy();
-  expect(offlineEvent.rawInput).toBe('Offline test breakfast');
+  expect(offlineEvent!.rawInput).toBe('Offline test breakfast');
 
   // Go online and wait for the outbox to drain.
   await context.setOffline(false);
@@ -91,10 +91,10 @@ test('airplane-mode capture syncs exactly one non-duplicated event', async ({ pa
     return data.events.find((e) => e.rawInput === 'Offline test breakfast');
   });
   expect(syncedEvent).toBeTruthy();
-  expect(syncedEvent.id).toBe(offlineEventId);
+  expect(syncedEvent!.id).toBe(offlineEventId);
 
   // Open a fresh browser context and verify the event appears exactly once.
-  const newContext = await context.browser().newContext();
+  const newContext = await context.browser()!.newContext();
   const newPage = await newContext.newPage();
   await signIn(newPage);
   await expect(newPage.getByText('Offline test breakfast')).toBeVisible();

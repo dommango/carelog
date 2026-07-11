@@ -141,6 +141,7 @@ describe('notifications service', () => {
       scheduleId: schedule.id,
       clientId: 'test',
       idempotencyKey: randomUUID(),
+      attachments: [],
     });
 
     const rows = await prisma.notification.findMany({

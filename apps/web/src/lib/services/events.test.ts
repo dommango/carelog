@@ -4,9 +4,9 @@ config({ path: '.env.local' });
 import { describe, it, expect, beforeEach } from 'vitest';
 import { randomUUID } from 'crypto';
 import { prisma } from '@/lib/prisma';
-import { createEvent, listEvents, updateEvent } from '@/lib/services/events';
+import { createEvent, listEvents, updateEvent, confirmEvent } from '@/lib/services/events';
 import { Actor } from '@/lib/policy';
-import { EventCategory, Role } from '@carelog/db';
+import { EventCategory, EventStatus, Role } from '@carelog/db';
 import { ForbiddenError } from '@/lib/errors';
 
 async function resetDb() {
@@ -66,6 +66,7 @@ async function seed() {
 
   return {
     patient,
+    caregiverUser,
     adminActor,
     caregiverActor,
     otherActor,
@@ -87,6 +88,7 @@ function eventInput(overrides: Partial<{
     templateId: overrides.templateId,
     clientId: overrides.clientId ?? 'test-client',
     idempotencyKey: overrides.idempotencyKey ?? randomUUID(),
+    attachments: [],
   };
 }
 
@@ -215,5 +217,3 @@ describe('events service', () => {
     expect(audits).toHaveLength(1);
   });
 });
-
-import { confirmEvent } from './events';

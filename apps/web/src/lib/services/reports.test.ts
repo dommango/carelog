@@ -13,7 +13,7 @@ import {
 } from '@/lib/services/reports';
 import { createSchedule } from '@/lib/services/schedules';
 import { Actor } from '@/lib/policy';
-import { EventCategory, EventStatus, Role } from '@carelog/db';
+import { EventCategory, EventStatus, Prisma, Role } from '@carelog/db';
 
 async function resetDb() {
   await prisma.$executeRawUnsafe(`
@@ -66,7 +66,9 @@ function makeEvent(
       occurredAt: new Date(overrides.occurredAt ?? new Date().toISOString()),
       capturedAt: new Date(),
       scheduleId: overrides.scheduleId ?? null,
-      structuredData: overrides.structuredData ?? null,
+      structuredData: overrides.structuredData
+        ? (overrides.structuredData as Prisma.InputJsonValue)
+        : Prisma.JsonNull,
       aiFlags: overrides.aiFlags ?? [],
       clientId: 'test-client',
       idempotencyKey: randomUUID(),

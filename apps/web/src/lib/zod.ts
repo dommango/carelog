@@ -70,6 +70,6 @@ export type AttachmentInput = z.infer<typeof attachmentInputSchema>;
 export type UpdateEventInput = z.infer<typeof updateEventSchema>;
 export type CreateTemplateInput = z.infer<typeof createTemplateSchema>;
 export type InviteInput = z.infer<typeof inviteSchema>;
-export type CreateScheduleInput = z.infer<typeof createScheduleSchema>;
+export type CreateScheduleInput = z.input<typeof createScheduleSchema>;
 export type UpdateScheduleInput = z.infer<typeof updateScheduleSchema>;
 export type ReportQueryInput = z.infer<typeof reportQuerySchema>;
