@@ -1,0 +1,15 @@
+.git
+**/node_modules
+**/.next
+**/dist
+/storage
+apps/web/storage
+apps/worker/storage
+**/.env
+**/.env.local
+**/*.log
+**/coverage
+**/playwright-report
+**/test-results
+apps/web/sw.js
+apps/web/sw.js.map

@@ -30,8 +30,8 @@ test-results/
 apps/web/sw.js
 apps/web/public/sw.js
 
-# Local storage for dev
-storage/
+# Local storage for dev (root-anchored so it doesn't match packages/storage/)
+/storage/
 apps/web/storage/
 apps/worker/storage/
 

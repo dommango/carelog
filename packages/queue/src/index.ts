@@ -16,8 +16,19 @@ if (!databaseUrl) {
 
 export const boss = new PgBoss(databaseUrl);
 
+// Queues that must exist before any work/send/schedule. pg-boss v10 no longer
+// auto-creates queues, so we register them explicitly (createQueue is idempotent).
+export const QUEUES: string[] = [AI_PROCESS_EVENT, NOTIFICATION_TICK];
+
+export async function ensureQueues(names: string[] = QUEUES): Promise<void> {
+  for (const name of names) {
+    await boss.createQueue(name);
+  }
+}
+
 export async function start(): Promise<void> {
   await boss.start();
+  await ensureQueues();
 }
 
 export async function stop(): Promise<void> {
@@ -26,5 +37,6 @@ export async function stop(): Promise<void> {
 
 export async function enqueue(jobType: JobType, payload: object): Promise<string | null> {
   await boss.start();
+  await boss.createQueue(jobType);
   return boss.send(jobType, payload);
 }
