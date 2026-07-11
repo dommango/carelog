@@ -4,9 +4,9 @@ config({ path: '.env.local' });
 import { describe, it, expect, beforeEach } from 'vitest';
 import { randomUUID } from 'crypto';
 import { prisma } from '@/lib/prisma';
-import { createEvent, listEvents, updateEvent } from '@/lib/services/events';
+import { createEvent, listEvents, updateEvent, confirmEvent } from '@/lib/services/events';
 import { Actor } from '@/lib/policy';
-import { EventCategory, Role } from '@carelog/db';
+import { EventCategory, EventStatus, Role } from '@carelog/db';
 import { ForbiddenError } from '@/lib/errors';
 
 async function resetDb() {
@@ -66,6 +66,7 @@ async function seed() {
 
   return {
     patient,
+    caregiverUser,
     adminActor,
     caregiverActor,
     otherActor,
@@ -87,6 +88,7 @@ function eventInput(overrides: Partial<{
     templateId: overrides.templateId,
     clientId: overrides.clientId ?? 'test-client',
     idempotencyKey: overrides.idempotencyKey ?? randomUUID(),
+    attachments: [],
   };
 }
 
@@ -97,7 +99,7 @@ describe('events service', () => {
 
   it('creates an event and writes an audit row', async () => {
     const { adminActor } = await seed();
-    const event = await createEvent(adminActor, eventInput());
+    const { event } = await createEvent(adminActor, eventInput());
 
     expect(event.rawInput).toBe('Gave albuterol nebulizer');
     expect(event.authorId).toBe(adminActor.userId);
@@ -130,8 +132,8 @@ describe('events service', () => {
   it('is idempotent on duplicate idempotencyKey', async () => {
     const { adminActor } = await seed();
     const key = randomUUID();
-    const event1 = await createEvent(adminActor, eventInput({ idempotencyKey: key }));
-    const event2 = await createEvent(
+    const { event: event1 } = await createEvent(adminActor, eventInput({ idempotencyKey: key }));
+    const { event: event2 } = await createEvent(
       adminActor,
       eventInput({ idempotencyKey: key, rawInput: 'Different text' })
     );
@@ -142,7 +144,7 @@ describe('events service', () => {
 
   it('allows admin to update any event', async () => {
     const { adminActor, caregiverActor } = await seed();
-    const event = await createEvent(caregiverActor, eventInput());
+    const { event } = await createEvent(caregiverActor, eventInput());
     const updated = await updateEvent(adminActor, event.id, {
       rawInput: 'Updated by admin',
     });
@@ -158,7 +160,7 @@ describe('events service', () => {
 
   it('allows caregiver to update own event within 24h', async () => {
     const { caregiverActor } = await seed();
-    const event = await createEvent(caregiverActor, eventInput());
+    const { event } = await createEvent(caregiverActor, eventInput());
     const updated = await updateEvent(caregiverActor, event.id, {
       rawInput: 'Updated by caregiver',
     });
@@ -168,7 +170,7 @@ describe('events service', () => {
 
   it('forbids caregiver from updating own event after 24h', async () => {
     const { caregiverActor } = await seed();
-    const event = await createEvent(caregiverActor, eventInput());
+    const { event } = await createEvent(caregiverActor, eventInput());
     const stale = new Date(Date.now() - 25 * 60 * 60 * 1000);
     await prisma.$executeRawUnsafe(
       `UPDATE "care_events" SET "created_at" = $1 WHERE "id" = $2`,
@@ -183,10 +185,35 @@ describe('events service', () => {
 
   it('forbids caregiver from updating another users event', async () => {
     const { caregiverActor, otherActor } = await seed();
-    const event = await createEvent(caregiverActor, eventInput());
+    const { event } = await createEvent(caregiverActor, eventInput());
 
     await expect(
       updateEvent(otherActor, event.id, { rawInput: 'Not yours' })
     ).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it('allows caregiver to confirm a needs_review event', async () => {
+    const { caregiverActor, caregiverUser, patient } = await seed();
+    const event = await prisma.careEvent.create({
+      data: {
+        id: randomUUID(),
+        patientId: patient.id,
+        authorId: caregiverUser.id,
+        rawInput: 'Needs review',
+        status: EventStatus.needs_review,
+        occurredAt: new Date(),
+        capturedAt: new Date(),
+        clientId: 'test',
+        idempotencyKey: randomUUID(),
+      },
+    });
+
+    const confirmed = await confirmEvent(caregiverActor, event.id);
+    expect(confirmed.status).toBe(EventStatus.confirmed);
+
+    const audits = await prisma.auditLog.findMany({
+      where: { entityType: 'event', entityId: event.id, action: 'event.confirm' },
+    });
+    expect(audits).toHaveLength(1);
   });
 });

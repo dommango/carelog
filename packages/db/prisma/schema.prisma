@@ -96,19 +96,20 @@ model VerificationToken {
 }
 
 model User {
-  id            String    @id @default(uuid())
-  email         String    @unique
-  emailVerified DateTime? @map("email_verified")
+  id            String             @id @default(uuid())
+  email         String             @unique
+  emailVerified DateTime?          @map("email_verified")
   name          String?
   image         String?
   phone         String?
-  createdAt     DateTime  @default(now()) @map("created_at")
-  deletedAt     DateTime? @map("deleted_at")
+  createdAt     DateTime           @default(now()) @map("created_at")
+  deletedAt     DateTime?          @map("deleted_at")
 
-  accounts    Account[]
-  sessions    Session[]
-  assignments CaregiverAssignment[]
-  events      CareEvent[]           @relation("author")
+  accounts          Account[]
+  sessions          Session[]
+  assignments       CaregiverAssignment[]
+  events            CareEvent[]          @relation("author")
+  pushSubscriptions PushSubscription[]
 
   @@map("users")
 }
@@ -230,6 +231,7 @@ model Schedule {
   status        ScheduleStatus @default(active)
   updatedAt     DateTime       @updatedAt @map("updated_at")
   createdAt     DateTime       @default(now()) @map("created_at")
+  deletedAt     DateTime?      @map("deleted_at")
 
   patient Patient     @relation(fields: [patientId], references: [id])
   events  CareEvent[]
@@ -252,7 +254,23 @@ model Notification {
   createdAt      DateTime       @default(now()) @map("created_at")
 
   @@index([scheduleId, dueAt])
+  @@index([userId, acknowledgedAt, dueAt])
   @@map("notifications")
+}
+
+model PushSubscription {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("push_subscriptions")
 }
 
 model AuditLog {

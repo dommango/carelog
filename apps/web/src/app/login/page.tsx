@@ -1,9 +1,12 @@
 'use client';
 
 import { signIn } from 'next-auth/react';
+import { useSearchParams } from 'next/navigation';
 
 export default function LoginPage() {
   const isDev = process.env.NODE_ENV === 'development';
+  const params = useSearchParams();
+  const error = params.get('error');
 
   return (
     <div className="min-h-[80vh] flex flex-col items-center justify-center p-4">
@@ -12,6 +15,12 @@ export default function LoginPage() {
           <h1 className="text-2xl font-semibold">CareLog</h1>
           <p className="text-sm text-gray-500 mt-1">Sign in to continue</p>
         </div>
+
+        {error && (
+          <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            Sign-in error: {error}
+          </div>
+        )}
 
         <button
           onClick={() => signIn('google', { callbackUrl: '/' })}
@@ -25,12 +34,16 @@ export default function LoginPage() {
             onSubmit={async (e) => {
               e.preventDefault();
               const formData = new FormData(e.currentTarget);
-              await signIn('credentials', {
+              const result = await signIn('credentials', {
                 email: formData.get('email') as string,
                 name: formData.get('name') as string,
-                callbackUrl: '/',
-                redirect: true,
+                redirect: false,
               });
+              if (result?.ok) {
+                window.location.href = '/';
+              } else {
+                alert(result?.error ?? 'Sign in failed');
+              }
             }}
             className="space-y-3 pt-4 border-t"
           >

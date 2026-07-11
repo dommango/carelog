@@ -6,9 +6,14 @@
     "dev": "pnpm --filter web dev",
     "build": "pnpm --filter web build",
     "test": "pnpm --filter web test",
+    "worker:dev": "pnpm --filter worker dev",
+    "worker:start": "pnpm --filter worker start",
+    "worker:build": "pnpm --filter worker build",
     "db:generate": "pnpm --filter db generate",
     "db:migrate": "pnpm --filter db migrate",
-    "db:studio": "pnpm --filter db studio"
+    "db:studio": "pnpm --filter db studio",
+    "db:push": "pnpm --filter db db:push",
+    "db:seed": "pnpm --filter web exec tsx src/scripts/seed.ts"
   },
   "devDependencies": {
     "typescript": "^5.5.0"
