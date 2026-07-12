@@ -116,64 +116,58 @@ export default function ReportsDashboard({
   }));
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="mx-auto flex max-w-5xl flex-col gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold">Reports</h1>
-          <p className="text-sm text-gray-500">Aggregates include only confirmed events.</p>
+          <h1 className="cc-serif text-[22px]">Reports</h1>
+          <p className="text-sm text-ink-faint">Aggregates include only confirmed events.</p>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2.5">
           <input
             type="date"
             value={start}
             onChange={(e) => setStart(e.target.value)}
-            className="border rounded p-2 text-sm"
+            className="cc-input"
+            style={{ padding: '8px 12px', minWidth: 0 }}
           />
-          <span className="text-gray-500">to</span>
+          <span className="text-ink-faint">to</span>
           <input
             type="date"
             value={end}
             onChange={(e) => setEnd(e.target.value)}
-            className="border rounded p-2 text-sm"
+            className="cc-input"
+            style={{ padding: '8px 12px', minWidth: 0 }}
           />
-          <button
-            onClick={loadData}
-            disabled={loading}
-            className="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700 disabled:opacity-50"
-          >
+          <button onClick={loadData} disabled={loading} className="cc-btn cc-btn--primary cc-btn--sm">
             {loading ? 'Loading…' : 'Update'}
           </button>
-          <a
-            href={downloadUrl('csv')}
-            className="bg-white border px-4 py-2 rounded text-sm hover:bg-gray-50"
-          >
+          <a href={downloadUrl('csv')} className="cc-btn cc-btn--secondary cc-btn--sm">
             Download CSV
           </a>
-          <a
-            href={downloadUrl('pdf')}
-            className="bg-white border px-4 py-2 rounded text-sm hover:bg-gray-50"
-          >
+          <a href={downloadUrl('pdf')} className="cc-btn cc-btn--secondary cc-btn--sm">
             Download PDF
           </a>
         </div>
       </div>
 
       {error && (
-        <div className="bg-red-50 text-red-700 p-3 rounded border border-red-200">{error}</div>
+        <div className="cc-card" style={{ background: 'var(--alert-tint)', border: '1px solid var(--accent-tint)', boxShadow: 'none', color: 'var(--accent-deep)' }}>
+          {error}
+        </div>
       )}
 
-      <section className="bg-white p-4 rounded-lg border">
-        <h2 className="font-medium mb-3">Adherence</h2>
+      <section className="cc-card">
+        <h2 className="cc-eyebrow mb-3">Adherence</h2>
         {data.adherence.length === 0 ? (
-          <p className="text-gray-500">No active schedules in this range.</p>
+          <p className="text-ink-faint">No active schedules in this range.</p>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {data.adherence.map((row) => (
-              <div key={row.scheduleId} className="border rounded p-4">
-                <div className="font-medium">{row.scheduleName}</div>
-                <div className="mt-2 text-2xl font-semibold">{row.onTimePercent}%</div>
-                <div className="text-sm text-gray-500">on time</div>
-                <div className="mt-2 text-sm text-gray-600">
+              <div key={row.scheduleId} className="cc-card cc-card--sunk">
+                <div className="text-sm font-bold text-ink">{row.scheduleName}</div>
+                <div className="cc-serif cc-mono mt-1.5 text-2xl text-accent-deep">{row.onTimePercent}%</div>
+                <div className="text-sm text-ink-faint">on time</div>
+                <div className="mt-1.5 text-sm text-ink-soft">
                   {row.logged} / {row.scheduled} logged · {row.missed} missed
                 </div>
               </div>
@@ -182,21 +176,28 @@ export default function ReportsDashboard({
         )}
       </section>
 
-      <section className="bg-white p-4 rounded-lg border">
-        <h2 className="font-medium mb-3">Mood Trend</h2>
+      <section className="cc-card">
+        <h2 className="cc-eyebrow mb-3">Mood trend</h2>
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={moodData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis domain={[1, 5]} allowDecimals />
-              <Tooltip />
+              <CartesianGrid strokeDasharray="3 3" stroke="#e9e0d1" />
+              <XAxis dataKey="date" stroke="#9b9284" tick={{ fill: '#9b9284', fontSize: 12 }} />
+              <YAxis domain={[1, 5]} allowDecimals stroke="#9b9284" tick={{ fill: '#9b9284', fontSize: 12 }} />
+              <Tooltip
+                contentStyle={{
+                  background: '#fffdf9',
+                  border: '1px solid #e9e0d1',
+                  borderRadius: 10,
+                  fontFamily: 'Mulish, sans-serif',
+                }}
+              />
               <Line
                 type="monotone"
                 dataKey="averageMood"
-                stroke="#2563eb"
+                stroke="#d2694a"
                 strokeWidth={2}
-                dot={{ r: 4 }}
+                dot={{ r: 4, fill: '#d2694a' }}
                 connectNulls
               />
             </LineChart>
@@ -204,34 +205,41 @@ export default function ReportsDashboard({
         </div>
       </section>
 
-      <section className="bg-white p-4 rounded-lg border">
-        <h2 className="font-medium mb-3">Meals & Hydration</h2>
+      <section className="cc-card">
+        <h2 className="cc-eyebrow mb-3">Meals &amp; hydration</h2>
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data.mealHydration}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis allowDecimals={false} />
-              <Tooltip />
-              <Legend />
-              <Bar dataKey="meals" fill="#3b82f6" />
-              <Bar dataKey="hydration" fill="#06b6d4" />
+              <CartesianGrid strokeDasharray="3 3" stroke="#e9e0d1" />
+              <XAxis dataKey="date" stroke="#9b9284" tick={{ fill: '#9b9284', fontSize: 12 }} />
+              <YAxis allowDecimals={false} stroke="#9b9284" tick={{ fill: '#9b9284', fontSize: 12 }} />
+              <Tooltip
+                contentStyle={{
+                  background: '#fffdf9',
+                  border: '1px solid #e9e0d1',
+                  borderRadius: 10,
+                  fontFamily: 'Mulish, sans-serif',
+                }}
+              />
+              <Legend wrapperStyle={{ fontSize: 12.5, fontWeight: 700, color: '#6d655a' }} />
+              <Bar dataKey="meals" fill="#b08968" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="hydration" fill="#6d8190" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
       </section>
 
-      <section className="bg-white p-4 rounded-lg border">
-        <h2 className="font-medium mb-3">Incidents</h2>
+      <section className="cc-card">
+        <h2 className="cc-eyebrow mb-3">Incidents</h2>
         {data.incidents.length === 0 ? (
-          <p className="text-gray-500">No incidents recorded.</p>
+          <p className="text-ink-faint">No incidents recorded.</p>
         ) : (
-          <ul className="divide-y">
+          <ul className="divide-y divide-line">
             {data.incidents.map((item) => (
-              <li key={item.id} className="py-2 text-sm">
-                <span className="text-gray-500">{formatDateLocal(item.occurredAt)}</span>
+              <li key={item.id} className="py-2.5 text-sm text-ink">
+                <span className="text-ink-faint">{formatDateLocal(item.occurredAt)}</span>
                 {' · '}
-                <span className="font-medium">{item.category ?? 'note'}</span>
+                <span className="font-bold">{item.category ?? 'note'}</span>
                 {' · '}
                 {item.rawInput ?? ''}
               </li>
@@ -240,19 +248,19 @@ export default function ReportsDashboard({
         )}
       </section>
 
-      <section className="bg-white p-4 rounded-lg border">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-medium">Event Log</h2>
-          <Link href="/" className="text-sm text-blue-600 hover:underline">
+      <section className="cc-card">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="cc-eyebrow">Event log</h2>
+          <Link href="/" className="text-sm font-bold text-accent-deep hover:text-accent">
             View timeline
           </Link>
         </div>
-        <ul className="divide-y">
+        <ul className="divide-y divide-line">
           {data.timeline.slice(0, 20).map((event) => (
-            <li key={event.id} className="py-2 text-sm">
-              <span className="text-gray-500">{formatDateLocal(event.occurredAt)}</span>
+            <li key={event.id} className="py-2.5 text-sm text-ink">
+              <span className="text-ink-faint">{formatDateLocal(event.occurredAt)}</span>
               {' · '}
-              <span className="font-medium">{event.category ?? 'note'}</span>
+              <span className="font-bold">{event.category ?? 'note'}</span>
               {' · '}
               {event.authorName ?? 'Unknown'}
               {' · '}

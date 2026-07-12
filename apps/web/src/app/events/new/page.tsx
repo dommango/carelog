@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { EventCategory, AttachmentKind } from '@carelog/db';
 import { localDb, getClientId, eventToLocal } from '@/lib/localDb';
 import { queueOutbox, drainOutbox } from '@/lib/outbox';
+import { Icon } from '@/components/Icon';
+import { categoryMeta } from '@/lib/categoryTheme';
 
 const categories = Object.values(EventCategory);
 
@@ -179,56 +181,74 @@ export default function NewEventPage() {
   };
 
   return (
-    <form
-      onSubmit={submit}
-      className="max-w-xl mx-auto space-y-4 bg-white p-4 rounded-lg border"
-    >
-      <h1 className="text-lg font-semibold">
-        {templateName ? `Log: ${templateName}` : 'New log'}
-      </h1>
-
-      <div>
-        <label className="block text-sm font-medium">Category</label>
-        <select
-          value={category}
-          onChange={(e) => setCategory(e.target.value)}
-          className="mt-1 w-full border rounded p-2"
-        >
-          <option value="">Auto (optional)</option>
-          {categories.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
+    <form onSubmit={submit} className="mx-auto flex max-w-xl flex-col gap-4">
+      <div className="-mx-4 -mt-[18px] mb-1 flex items-center gap-2 border-b border-line bg-card px-4 py-3.5">
+        <button type="button" onClick={() => router.back()} className="cc-btn cc-btn--ghost cc-btn--sm !pl-1.5">
+          <Icon name="chevL" size={16} />
+          Back
+        </button>
+        <h1 className="cc-serif text-[22px]">{templateName ? templateName : 'New log'}</h1>
       </div>
 
       <div>
-        <label className="block text-sm font-medium">What happened</label>
+        <label className="cc-field-label">What happened</label>
         <textarea
           value={rawInput}
           onChange={(e) => setRawInput(e.target.value)}
           required
           rows={4}
-          className="mt-1 w-full border rounded p-2"
+          className="cc-input resize-none"
+          placeholder="Say it however you'd tell a nurse — we'll sort out the details."
         />
+        <div className="cc-note cc-note--calm mt-2.5">
+          <span className="cc-note-ic">
+            <Icon name="check" size={16} />
+          </span>
+          <span>
+            Just write plainly. CareLog reads it into meds, vitals, and mood for you — you confirm
+            before it&apos;s final.
+          </span>
+        </div>
       </div>
 
       <div>
-        <label className="block text-sm font-medium">When</label>
+        <label className="cc-field-label">
+          Category <span className="font-semibold text-ink-faint">· optional, auto-detected</span>
+        </label>
+        <div className="flex flex-wrap gap-[7px]">
+          {categories.map((c) => {
+            const meta = categoryMeta(c);
+            const active = category === c;
+            return (
+              <button
+                key={c}
+                type="button"
+                onClick={() => setCategory(active ? '' : c)}
+                className={`cc-btn cc-btn--sm ${active ? 'cc-btn--primary' : 'cc-btn--secondary'}`}
+              >
+                <Icon name={meta.icon} size={14} />
+                {meta.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div>
+        <label className="cc-field-label">When</label>
         <input
           type="datetime-local"
           value={occurredAt}
           onChange={(e) => setOccurredAt(e.target.value)}
           required
-          className="mt-1 w-full border rounded p-2"
+          className="cc-input"
         />
       </div>
 
-      <div className="space-y-2">
-        <label className="block text-sm font-medium">Attachments</label>
-        <div className="flex flex-wrap gap-2">
-          <label className="px-3 py-1.5 bg-gray-100 rounded cursor-pointer hover:bg-gray-200">
+      <div className="space-y-2.5">
+        <label className="cc-field-label">Attachments</label>
+        <div className="flex gap-2.5">
+          <label className="cc-btn cc-btn--secondary flex-1 cursor-pointer">
             <input
               type="file"
               accept="image/*"
@@ -236,9 +256,10 @@ export default function NewEventPage() {
               className="hidden"
               onChange={(e) => handleFileChange(e, AttachmentKind.photo)}
             />
-            📷 Photo
+            <Icon name="phone" size={17} />
+            Photo
           </label>
-          <label className="px-3 py-1.5 bg-gray-100 rounded cursor-pointer hover:bg-gray-200">
+          <label className="cc-btn cc-btn--secondary flex-1 cursor-pointer">
             <input
               type="file"
               accept="image/*"
@@ -246,28 +267,39 @@ export default function NewEventPage() {
               className="hidden"
               onChange={(e) => handleFileChange(e, AttachmentKind.photo)}
             />
-            🤳 Selfie
+            <Icon name="phone" size={17} />
+            Selfie
           </label>
           <button
             type="button"
             onClick={recording ? stopRecording : startRecording}
-            className={`px-3 py-1.5 rounded ${recording ? 'bg-red-100 text-red-700' : 'bg-gray-100 hover:bg-gray-200'}`}
+            className="cc-btn flex-1"
+            style={
+              recording
+                ? { background: 'var(--accent-tint)', color: 'var(--accent-deep)', boxShadow: 'none' }
+                : { background: 'var(--card)', color: 'var(--ink)', boxShadow: 'inset 0 0 0 1px var(--line)' }
+            }
           >
-            {recording ? '⏹ Stop' : '🎙 Voice memo'}
+            <Icon name="bell" size={17} />
+            {recording ? 'Stop' : 'Voice memo'}
           </button>
         </div>
 
         {attachments.length > 0 && (
-          <ul className="space-y-1">
+          <ul className="space-y-1.5">
             {attachments.map((a) => (
-              <li key={a.id} className="flex items-center justify-between text-sm bg-gray-50 p-2 rounded">
-                <span>
-                  {a.kind === 'audio' ? '🔊' : '📷'} {a.file.name} ({Math.round(a.file.size / 1024)} KB)
+              <li
+                key={a.id}
+                className="flex items-center justify-between gap-2 rounded-[var(--r-lg)] bg-card-sunk p-2.5 text-sm text-ink-soft"
+              >
+                <span className="flex items-center gap-1.5">
+                  <Icon name={a.kind === 'audio' ? 'bell' : 'phone'} size={14} className="text-ink-faint" />
+                  {a.file.name} ({Math.round(a.file.size / 1024)} KB)
                 </span>
                 <button
                   type="button"
                   onClick={() => removeAttachment(a.id)}
-                  className="text-red-600 hover:underline"
+                  className="font-bold text-ink-faint hover:text-accent-deep"
                 >
                   Remove
                 </button>
@@ -277,12 +309,9 @@ export default function NewEventPage() {
         )}
       </div>
 
-      <button
-        type="submit"
-        disabled={loading}
-        className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 disabled:opacity-50"
-      >
-        {loading ? 'Saving…' : 'Save'}
+      <button type="submit" disabled={loading} className="cc-btn cc-btn--primary cc-btn--block cc-btn--xl">
+        <Icon name="send" size={18} />
+        {loading ? 'Saving…' : 'Save log'}
       </button>
     </form>
   );

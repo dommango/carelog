@@ -1,0 +1,315 @@
+/* CareCover & CareLog design system — primitive component classes.
+   All .cc-* classes require an ancestor with class="cc" (see body in layout.tsx). */
+
+.cc {
+  font-family: var(--font-sans);
+  color: var(--ink);
+}
+
+.cc-serif {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  letter-spacing: -0.4px;
+}
+
+.cc-mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.cc-eyebrow {
+  display: inline-block;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+/* ---------- Buttons ---------- */
+
+.cc-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 50px;
+  padding: 0 20px;
+  border: none;
+  border-radius: var(--pill);
+  background: var(--card-sunk);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-weight: 800;
+  font-size: 14.5px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.12s ease, box-shadow 0.12s ease, transform 0.12s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.cc-btn:active {
+  transform: translateY(1px);
+}
+
+.cc-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.cc-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  transform: none;
+}
+
+.cc-btn--primary {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: var(--sh-sm);
+}
+
+.cc-btn--primary:hover:not(:disabled) {
+  background: var(--accent-hov);
+}
+
+.cc-btn--secondary {
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.cc-btn--secondary:hover:not(:disabled) {
+  background: var(--card-sunk);
+}
+
+.cc-btn--ghost {
+  background: transparent;
+  color: var(--ink-soft);
+  box-shadow: none;
+}
+
+.cc-btn--ghost:hover:not(:disabled) {
+  background: var(--card-sunk);
+}
+
+.cc-btn--block {
+  display: flex;
+  width: 100%;
+}
+
+.cc-btn--sm {
+  min-height: 40px;
+  padding: 0 14px;
+  font-size: 13px;
+  gap: 6px;
+}
+
+.cc-btn--xl {
+  min-height: 62px;
+  padding: 0 24px;
+  font-size: 16px;
+}
+
+/* ---------- Cards ---------- */
+
+.cc-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-xl);
+  box-shadow: var(--sh);
+  padding: 15px 16px;
+}
+
+.cc-card--sunk {
+  background: var(--card-sunk);
+  border-color: var(--line-soft);
+  box-shadow: none;
+}
+
+/* ---------- Badges ---------- */
+
+.cc-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--pill);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.cc-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+.cc-badge--covered {
+  background: var(--covered-tint);
+  color: var(--covered-ink);
+}
+.cc-badge--covered .cc-dot {
+  color: var(--covered);
+}
+
+.cc-badge--await {
+  background: var(--await-tint);
+  color: var(--await-ink);
+}
+.cc-badge--await .cc-dot {
+  color: var(--await);
+}
+
+.cc-badge--attention {
+  background: var(--alert-tint);
+  color: var(--accent-deep);
+}
+.cc-badge--attention .cc-dot {
+  color: var(--alert);
+}
+
+.cc-badge--gap {
+  background: var(--gap-tint);
+  color: var(--gap-ink);
+}
+.cc-badge--gap .cc-dot {
+  color: var(--gap);
+}
+
+/* ---------- Category chips ---------- */
+
+.cc-tier {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: var(--pill);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* ---------- Avatars ---------- */
+
+.cc-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--pill);
+  font-family: var(--font-sans);
+  font-weight: 800;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+}
+
+.cc-avatar--caregiver {
+  background: var(--caregiver-tint);
+  color: var(--caregiver-ink);
+}
+
+.cc-avatar--family {
+  background: var(--family-tint);
+  color: var(--family-ink);
+}
+
+/* ---------- Inputs ---------- */
+
+.cc-field-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.cc-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--card);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.45;
+  transition: box-shadow 0.12s ease, border-color 0.12s ease;
+}
+
+.cc-input::placeholder {
+  color: var(--ink-faint);
+}
+
+.cc-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+/* ---------- Notes ---------- */
+
+.cc-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: var(--r-lg);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.cc-note--calm {
+  background: var(--covered-tint);
+  color: var(--covered-ink);
+}
+
+.cc-note-ic {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  color: var(--covered);
+}
+
+/* ---------- Structured-data chips ---------- */
+
+.cc-data-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: var(--pill);
+  background: var(--card-sunk);
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.cc-data-chip-key {
+  color: var(--ink-faint);
+}
+
+/* ---------- Toasts ---------- */
+
+.cc-toast {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: var(--pill);
+  background: var(--ink);
+  color: #fff;
+  font-weight: 700;
+  font-size: 13.5px;
+  box-shadow: var(--sh-lg);
+}
