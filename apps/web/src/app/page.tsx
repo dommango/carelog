@@ -40,7 +40,7 @@ export default async function HomePage() {
     <div className="mx-auto flex max-w-2xl flex-col gap-4">
       {upcoming.length > 0 && (
         <section className="cc-card">
-          <div className="cc-eyebrow mb-[9px]">Upcoming</div>
+          <h2 className="cc-eyebrow mb-[9px]">Upcoming</h2>
           <div className="flex flex-wrap gap-2">
             {upcoming.slice(0, 6).map((item) => {
               const params = new URLSearchParams();

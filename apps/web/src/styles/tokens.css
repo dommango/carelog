@@ -1,0 +1,147 @@
+/* CareCover & CareLog design system — design tokens.
+   Values sourced from the design handoff (design_handoff_carelog_theme/README.md).
+   Mulish/Newsreader are loaded via next/font/google in layout.tsx. */
+
+:root {
+  /* Surfaces */
+  --sand: #f6efe4;
+  --sand-deep: #efe6d7;
+  --card: #fffdf9;
+  --card-sunk: #faf4ea;
+
+  /* Ink */
+  --ink: #38332c;
+  --ink-soft: #6d655a;
+  --ink-faint: #9b9284;
+  --line: #e9e0d1;
+  --line-soft: #f1eadd;
+
+  /* Accent (terracotta) */
+  --accent: #d2694a;
+  --accent-hov: #bd5a3d;
+  --accent-deep: #8f3d28;
+  --accent-tint: #f8e7df;
+  --accent-glow: rgba(210, 105, 74, 0.18);
+
+  /* Status */
+  --covered: #7aa06b;
+  --covered-tint: #e8efdf;
+  --covered-ink: #4c6f3d;
+  --await: #cf9442;
+  --await-tint: #f8ecd6;
+  --await-ink: #8a5d1e;
+  --gap: #b6ad9d;
+  --gap-tint: #ece6da;
+  --gap-ink: #6f675b;
+  --alert: #c2613f;
+  --alert-tint: #f7e3da;
+
+  /* Roles */
+  --family: #d2694a;
+  --family-tint: #f8e7df;
+  --family-ink: #8f3d28;
+  --caregiver: #6d8190;
+  --caregiver-tint: #e8edf0;
+  --caregiver-ink: #3f5360;
+
+  /* Tiers (cycle) */
+  --tier-0: #d2694a;
+  --tier-0-tint: #f8e7df;
+  --tier-0-ink: #8f3d28;
+  --tier-1: #6d8190;
+  --tier-1-tint: #e8edf0;
+  --tier-1-ink: #3f5360;
+  --tier-2: #b08968;
+  --tier-2-tint: #f1e6d8;
+  --tier-2-ink: #7a5636;
+  --tier-3: #8a7aa8;
+  --tier-3-tint: #eae5f2;
+  --tier-3-ink: #574a73;
+
+  /* Type — font families are loaded via next/font/google in layout.tsx,
+     which exposes --font-mulish / --font-newsreader on <html>. */
+  --ds-font-sans: var(--font-mulish), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --ds-font-serif: var(--font-newsreader), ui-serif, Georgia, serif;
+  --ds-font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* Aliases used directly by component CSS (var(--font-sans) / var(--font-serif)) */
+  --font-sans: var(--ds-font-sans);
+  --font-serif: var(--ds-font-serif);
+  --font-mono: var(--ds-font-mono);
+
+  /* Radii */
+  --r-sm: 7px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-xl: 20px;
+  --r-2xl: 28px;
+  --pill: 999px;
+
+  /* Shadows — warm brown-tinted, never neutral gray */
+  --sh-sm: 0 1px 2px rgba(74, 54, 38, 0.08);
+  --sh: 0 4px 14px rgba(74, 54, 38, 0.1), 0 1px 3px rgba(74, 54, 38, 0.08);
+  --sh-lg: 0 12px 32px rgba(74, 54, 38, 0.18), 0 4px 10px rgba(74, 54, 38, 0.1);
+}
+
+/* Tailwind v4 CSS-first theme mapping — exposes the tokens above as
+   utility classes (bg-sand, text-ink, border-line, font-serif, rounded-card, …). */
+@theme inline {
+  --color-sand: var(--sand);
+  --color-sand-deep: var(--sand-deep);
+  --color-card: var(--card);
+  --color-card-sunk: var(--card-sunk);
+
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-faint: var(--ink-faint);
+  --color-line: var(--line);
+  --color-line-soft: var(--line-soft);
+
+  --color-accent: var(--accent);
+  --color-accent-hov: var(--accent-hov);
+  --color-accent-deep: var(--accent-deep);
+  --color-accent-tint: var(--accent-tint);
+
+  --color-covered: var(--covered);
+  --color-covered-tint: var(--covered-tint);
+  --color-covered-ink: var(--covered-ink);
+  --color-await: var(--await);
+  --color-await-tint: var(--await-tint);
+  --color-await-ink: var(--await-ink);
+  --color-gap: var(--gap);
+  --color-gap-tint: var(--gap-tint);
+  --color-gap-ink: var(--gap-ink);
+  --color-alert: var(--alert);
+  --color-alert-tint: var(--alert-tint);
+
+  --color-family: var(--family);
+  --color-family-tint: var(--family-tint);
+  --color-family-ink: var(--family-ink);
+  --color-caregiver: var(--caregiver);
+  --color-caregiver-tint: var(--caregiver-tint);
+  --color-caregiver-ink: var(--caregiver-ink);
+
+  --color-tier-0: var(--tier-0);
+  --color-tier-0-tint: var(--tier-0-tint);
+  --color-tier-0-ink: var(--tier-0-ink);
+  --color-tier-1: var(--tier-1);
+  --color-tier-1-tint: var(--tier-1-tint);
+  --color-tier-1-ink: var(--tier-1-ink);
+  --color-tier-2: var(--tier-2);
+  --color-tier-2-tint: var(--tier-2-tint);
+  --color-tier-2-ink: var(--tier-2-ink);
+  --color-tier-3: var(--tier-3);
+  --color-tier-3-tint: var(--tier-3-tint);
+  --color-tier-3-ink: var(--tier-3-ink);
+
+  --font-sans: var(--ds-font-sans);
+  --font-serif: var(--ds-font-serif);
+  --font-mono: var(--ds-font-mono);
+
+  --radius-card: var(--r-xl);
+  --radius-pill: var(--pill);
+
+  --shadow-sm: var(--sh-sm);
+  --shadow-card: var(--sh);
+  --shadow-lg: var(--sh-lg);
+}

@@ -116,7 +116,7 @@ export default function Timeline() {
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4">
       <div>
-        <div className="cc-eyebrow mb-[9px]">Quick log</div>
+        <h2 className="cc-eyebrow mb-[9px]">Quick log</h2>
         <div className="flex flex-wrap gap-2">
           {templates.map((template) => {
             const meta = CATEGORY_META[template.category] ?? categoryMeta(template.category);
@@ -146,7 +146,7 @@ export default function Timeline() {
           style={{ background: 'var(--alert-tint)', border: '1px solid var(--accent-tint)', boxShadow: 'none' }}
         >
           <div className="mb-2.5 flex items-center justify-between">
-            <div className="text-sm font-extrabold text-accent-deep">Needs your review</div>
+            <h2 className="text-sm font-extrabold text-accent-deep">Needs your review</h2>
             <span className="text-xs font-bold text-accent-deep">{needsReview.length} awaiting</span>
           </div>
           <div className="space-y-2">

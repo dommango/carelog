@@ -7,7 +7,10 @@ export function OfflineIndicator() {
 
   if (!online) {
     return (
-      <span className="cc-badge cc-badge--gap">
+      <span
+        className="cc-badge cc-badge--gap"
+        title="Changes are saved locally and will sync when you are back online"
+      >
         <span className="cc-dot" />
         Offline
       </span>
@@ -24,7 +27,12 @@ export function OfflineIndicator() {
   }
 
   return (
-    <button onClick={syncNow} type="button" className="cc-badge cc-badge--covered">
+    <button
+      onClick={syncNow}
+      type="button"
+      aria-label="Sync now"
+      className="cc-badge cc-badge--covered"
+    >
       <span className="cc-dot" />
       Synced
     </button>

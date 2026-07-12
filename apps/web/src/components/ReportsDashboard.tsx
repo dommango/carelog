@@ -157,7 +157,7 @@ export default function ReportsDashboard({
       )}
 
       <section className="cc-card">
-        <div className="cc-eyebrow mb-3">Adherence</div>
+        <h2 className="cc-eyebrow mb-3">Adherence</h2>
         {data.adherence.length === 0 ? (
           <p className="text-ink-faint">No active schedules in this range.</p>
         ) : (
@@ -177,7 +177,7 @@ export default function ReportsDashboard({
       </section>
 
       <section className="cc-card">
-        <div className="cc-eyebrow mb-3">Mood trend</div>
+        <h2 className="cc-eyebrow mb-3">Mood trend</h2>
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={moodData}>
@@ -206,7 +206,7 @@ export default function ReportsDashboard({
       </section>
 
       <section className="cc-card">
-        <div className="cc-eyebrow mb-3">Meals &amp; hydration</div>
+        <h2 className="cc-eyebrow mb-3">Meals &amp; hydration</h2>
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data.mealHydration}>
@@ -230,7 +230,7 @@ export default function ReportsDashboard({
       </section>
 
       <section className="cc-card">
-        <div className="cc-eyebrow mb-3">Incidents</div>
+        <h2 className="cc-eyebrow mb-3">Incidents</h2>
         {data.incidents.length === 0 ? (
           <p className="text-ink-faint">No incidents recorded.</p>
         ) : (
@@ -250,7 +250,7 @@ export default function ReportsDashboard({
 
       <section className="cc-card">
         <div className="mb-3 flex items-center justify-between">
-          <div className="cc-eyebrow">Event log</div>
+          <h2 className="cc-eyebrow">Event log</h2>
           <Link href="/" className="text-sm font-bold text-accent-deep hover:text-accent">
             View timeline
           </Link>

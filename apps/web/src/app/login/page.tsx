@@ -79,7 +79,7 @@ export default function LoginPage() {
         )}
 
         <p className="mt-6 text-center text-[12.5px] font-bold text-ink-faint">
-          New to the care circle? <a href="#">Ask a family member to invite you</a>.
+          New to the care circle? Ask a family member to invite you.
         </p>
       </div>
     </div>
