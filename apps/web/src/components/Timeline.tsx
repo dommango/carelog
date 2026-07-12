@@ -6,6 +6,25 @@ import { liveQuery } from 'dexie';
 import { localDb, type LocalEvent, type LocalTemplate } from '@/lib/localDb';
 import { pullDelta, getSyncCursor } from '@/lib/sync';
 import { EventStatus } from '@carelog/db';
+import { Icon } from '@/components/Icon';
+import { CATEGORY_META, STATUS_META, categoryMeta, tierStyle, initials } from '@/lib/categoryTheme';
+
+function formatChipValue(value: unknown): string {
+  if (Array.isArray(value)) return value.map(formatChipValue).join(', ');
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+}
+
+function StatusBadge({ status }: { status: EventStatus }) {
+  const meta = STATUS_META[status];
+  return (
+    <span className={`cc-badge cc-badge--${meta.kind}`}>
+      <span className="cc-dot" />
+      {meta.label}
+    </span>
+  );
+}
 
 export default function Timeline() {
   const [events, setEvents] = useState<LocalEvent[]>([]);
@@ -90,149 +109,168 @@ export default function Timeline() {
 
   const needsReview = events.filter((e) => e.status === EventStatus.needs_review).slice(0, 20);
 
-  const statusBadge = (status: EventStatus) => {
-    const map: Record<EventStatus, string> = {
-      pending_ai: 'bg-yellow-100 text-yellow-800',
-      needs_review: 'bg-orange-100 text-orange-800',
-      confirmed: 'bg-green-100 text-green-800',
-      ai_failed: 'bg-red-100 text-red-800',
-    };
-    return (
-      <span className={`text-xs px-2 py-1 rounded ${map[status]}`}>
-        {status.replace('_', ' ')}
-      </span>
-    );
-  };
-
   if (loading) {
-    return (
-      <div className="max-w-2xl mx-auto p-8 text-center text-gray-500">
-        Loading…
-      </div>
-    );
+    return <div className="py-12 text-center text-ink-faint">Loading…</div>;
   }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      <div className="flex flex-wrap gap-2">
-        {templates.map((template) => (
-          <Link
-            key={template.id}
-            href={`/events/new?templateId=${template.id}`}
-            className="px-3 py-1.5 bg-blue-100 text-blue-800 rounded-full text-sm hover:bg-blue-200"
-          >
-            {template.name}
+    <div className="mx-auto flex max-w-2xl flex-col gap-4">
+      <div>
+        <div className="cc-eyebrow mb-[9px]">Quick log</div>
+        <div className="flex flex-wrap gap-2">
+          {templates.map((template) => {
+            const meta = CATEGORY_META[template.category] ?? categoryMeta(template.category);
+            return (
+              <Link
+                key={template.id}
+                href={`/events/new?templateId=${template.id}`}
+                className="cc-btn cc-btn--secondary cc-btn--sm"
+              >
+                <span style={{ color: 'var(--accent)' }}>
+                  <Icon name={meta.icon} size={15} />
+                </span>
+                {template.name}
+              </Link>
+            );
+          })}
+          <Link href="/events/new" className="cc-btn cc-btn--sm">
+            <Icon name="plus" size={15} />
+            Note
           </Link>
-        ))}
-        <Link
-          href="/events/new"
-          className="px-3 py-1.5 bg-gray-200 text-gray-800 rounded-full text-sm hover:bg-gray-300"
-        >
-          + Note
-        </Link>
+        </div>
       </div>
 
       {needsReview.length > 0 && (
-        <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="text-sm font-semibold text-orange-900">Needs review</h2>
-            <span className="text-xs text-orange-700">{needsReview.length} awaiting confirmation</span>
+        <div
+          className="cc-card"
+          style={{ background: 'var(--alert-tint)', border: '1px solid var(--accent-tint)', boxShadow: 'none' }}
+        >
+          <div className="mb-2.5 flex items-center justify-between">
+            <div className="text-sm font-extrabold text-accent-deep">Needs your review</div>
+            <span className="text-xs font-bold text-accent-deep">{needsReview.length} awaiting</span>
           </div>
           <div className="space-y-2">
-            {needsReview.map((event) => (
-              <div
-                key={event.id}
-                className="flex items-center justify-between gap-2 text-sm text-orange-800"
-              >
-                <span className="truncate">
-                  {event.category ?? 'note'} — {event.rawInput?.slice(0, 60) ?? ''}
-                  {event.rawInput && event.rawInput.length > 60 && '…'}
-                </span>
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    onClick={() => confirmEvent(event.id)}
-                    className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs hover:bg-green-200"
-                  >
-                    Confirm
-                  </button>
-                  <button
-                    onClick={() => fixEvent(event.id, event.rawInput)}
-                    className="px-2 py-1 bg-white text-orange-800 border border-orange-200 rounded text-xs hover:bg-orange-100"
-                  >
-                    Fix
-                  </button>
+            {needsReview.map((event) => {
+              const meta = categoryMeta(event.category);
+              return (
+                <div key={event.id} className="flex items-center justify-between gap-2.5 text-[13.5px]">
+                  <span className="truncate font-semibold text-ink">
+                    {meta.label} — {event.rawInput?.slice(0, 60) ?? ''}
+                    {event.rawInput && event.rawInput.length > 60 && '…'}
+                  </span>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <button
+                      onClick={() => confirmEvent(event.id)}
+                      className="cc-btn cc-btn--primary cc-btn--sm"
+                      style={{ minHeight: 34, padding: '6px 14px' }}
+                    >
+                      <Icon name="check" size={14} />
+                      Confirm
+                    </button>
+                    <button
+                      onClick={() => fixEvent(event.id, event.rawInput)}
+                      className="cc-btn cc-btn--secondary cc-btn--sm"
+                      style={{ minHeight: 34, padding: '6px 14px' }}
+                    >
+                      Fix
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
 
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Timeline</h1>
-      </div>
+      <div>
+        <h1 className="cc-serif mb-3 text-[22px]">Today</h1>
 
-      <div className="space-y-3">
-        {events.length === 0 && (
-          <div className="text-center text-gray-500 py-12">No events yet.</div>
-        )}
-        {events.map((event) => (
-          <div
-            key={event.id}
-            data-testid="event-card"
-            className="bg-white rounded-lg border p-4 shadow-sm"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-medium uppercase tracking-wide text-gray-500">
-                {event.category ?? 'note'}
-              </span>
-              <div className="flex items-center gap-2">
-                {event.hasConflict && (
-                  <span className="text-xs px-2 py-1 rounded bg-red-100 text-red-700" title="Another caregiver edited this entry">
-                    Conflict
+        <div className="flex flex-col gap-3">
+          {events.length === 0 && (
+            <div className="py-12 text-center text-ink-faint">No events yet.</div>
+          )}
+          {events.map((event) => {
+            const meta = categoryMeta(event.category);
+            const dataEntries =
+              event.structuredData && event.status !== 'pending_ai'
+                ? Object.entries(event.structuredData).filter(([, v]) => formatChipValue(v) !== '')
+                : [];
+
+            return (
+              <div key={event.id} data-testid="event-card" className="cc-card">
+                <div className="mb-2.5 flex items-center justify-between">
+                  <span className="cc-tier" style={tierStyle(meta.tier)}>
+                    <Icon name={meta.icon} size={13} />
+                    {meta.label}
                   </span>
-                )}
-                {statusBadge(event.status)}
-              </div>
-            </div>
-            <p className="mt-2 text-gray-900 whitespace-pre-wrap">{event.rawInput}</p>
-
-            {event.structuredData && event.status !== 'pending_ai' && (
-              <div className="mt-2 text-sm bg-gray-50 rounded p-2">
-                <pre className="whitespace-pre-wrap">{JSON.stringify(event.structuredData, null, 2)}</pre>
-              </div>
-            )}
-
-            {event.attachments.length > 0 && (
-              <div className="mt-3 space-y-2">
-                {event.attachments.map((attachment) => (
-                  <div key={attachment.id} className="text-sm">
-                    {attachment.kind === 'photo' && (
-                      <div className="space-y-1">
-                        <span className="text-gray-500">📷 Photo</span>
-                        {attachment.visionSummary && (
-                          <p className="text-gray-700 italic">{attachment.visionSummary}</p>
-                        )}
-                      </div>
+                  <div className="flex items-center gap-2">
+                    {event.hasConflict && (
+                      <span
+                        className="cc-badge cc-badge--gap"
+                        title="Another caregiver edited this entry"
+                      >
+                        <span className="cc-dot" />
+                        Conflict
+                      </span>
                     )}
-                    {attachment.kind === 'audio' && (
-                      <div className="space-y-1">
-                        <span className="text-gray-500">🔊 Audio</span>
-                        {attachment.transcript && (
-                          <p className="text-gray-700 italic">“{attachment.transcript}”</p>
-                        )}
-                      </div>
-                    )}
+                    <StatusBadge status={event.status} />
                   </div>
-                ))}
-              </div>
-            )}
+                </div>
 
-            <div className="mt-2 text-sm text-gray-500">
-              {event.authorName ?? 'Unknown'} · {new Date(event.occurredAt).toLocaleString()}
-            </div>
-          </div>
-        ))}
+                <p className="mb-2.5 whitespace-pre-wrap text-[15px] leading-[1.45] text-ink">
+                  {event.rawInput}
+                </p>
+
+                {dataEntries.length > 0 && (
+                  <div className="mb-2.5 flex flex-wrap gap-1.5">
+                    {dataEntries.map(([key, value]) => (
+                      <span key={key} className="cc-data-chip">
+                        <span className="cc-data-chip-key">{key}</span>
+                        {formatChipValue(value)}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {event.attachments.length > 0 && (
+                  <div className="mb-2.5 flex flex-col gap-1.5">
+                    {event.attachments.map((attachment) => (
+                      <div key={attachment.id} className="flex items-start gap-1.5 text-sm text-ink-soft">
+                        {attachment.kind === 'photo' && (
+                          <>
+                            <Icon name="phone" size={14} className="mt-0.5 shrink-0 text-ink-faint" />
+                            <span>
+                              Photo
+                              {attachment.visionSummary && (
+                                <span className="italic text-ink-soft"> — {attachment.visionSummary}</span>
+                              )}
+                            </span>
+                          </>
+                        )}
+                        {attachment.kind === 'audio' && (
+                          <>
+                            <Icon name="bell" size={14} className="mt-0.5 shrink-0 text-ink-faint" />
+                            <span>
+                              Voice memo
+                              {attachment.transcript && (
+                                <span className="italic text-ink-soft"> — “{attachment.transcript}”</span>
+                              )}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2 text-[12.5px] font-bold text-ink-faint">
+                  <span className="cc-avatar cc-avatar--caregiver">{initials(event.authorName)}</span>
+                  {event.authorName ?? 'Unknown'} · {new Date(event.occurredAt).toLocaleString()}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

@@ -14,7 +14,7 @@ export default async function HomePage() {
   const actor = await getActor(session.user.id as string);
   if (!actor) {
     return (
-      <div className="max-w-2xl mx-auto p-8 text-center">
+      <div className="mx-auto max-w-2xl p-8 text-center text-ink-soft">
         You do not have access to a patient profile yet.
       </div>
     );
@@ -37,10 +37,10 @@ export default async function HomePage() {
   upcoming.sort((a, b) => a.dueAt.getTime() - b.dueAt.getTime());
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="mx-auto flex max-w-2xl flex-col gap-4">
       {upcoming.length > 0 && (
-        <section className="bg-white p-4 rounded-lg border">
-          <h2 className="font-medium mb-3">Upcoming</h2>
+        <section className="cc-card">
+          <div className="cc-eyebrow mb-[9px]">Upcoming</div>
           <div className="flex flex-wrap gap-2">
             {upcoming.slice(0, 6).map((item) => {
               const params = new URLSearchParams();
@@ -52,12 +52,14 @@ export default async function HomePage() {
                 <Link
                   key={`${item.schedule.id}-${item.dueAt.toISOString()}`}
                   href={`/events/new?${params.toString()}`}
-                  className={`px-3 py-1.5 rounded-full text-sm ${
+                  className="cc-badge"
+                  style={
                     item.inWindow
-                      ? 'bg-green-100 text-green-800 hover:bg-green-200'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
+                      ? { background: 'var(--covered-tint)', color: 'var(--covered-ink)' }
+                      : { background: 'var(--card-sunk)', color: 'var(--ink-soft)' }
+                  }
                 >
+                  <span className="cc-dot" />
                   {item.schedule.name} · {item.dueAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   {item.inWindow && ' · now'}
                 </Link>
