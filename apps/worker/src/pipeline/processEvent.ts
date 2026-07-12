@@ -57,7 +57,7 @@ export async function processEvent(eventId: string): Promise<void> {
   let structuredData: Record<string, unknown> | null = null;
   let confidence: number | null = null;
   let flags: string[] = [];
-  let aiModelVersion = 'claude-3-5-sonnet-20241022';
+  let aiModelVersion = 'claude-haiku-4-5';
   let suggestedScheduleId: string | null | undefined;
 
   try {
