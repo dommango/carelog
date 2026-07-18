@@ -36,6 +36,7 @@ export const {
   session: { strategy: 'database', maxAge: 30 * 24 * 60 * 60 },
   pages: {
     signIn: '/login',
+    verifyRequest: '/verify-request',
   },
   providers: [
     ...(process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET
