@@ -7,6 +7,10 @@ import { createTransport } from 'nodemailer';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 
+export const googleEnabled = Boolean(
+  process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET
+);
+
 const credentialsSchema = z.object({
   email: z.string().email(),
   name: z.string().min(1),
@@ -34,11 +38,15 @@ export const {
     signIn: '/login',
   },
   providers: [
-    Google({
-      clientId: process.env.AUTH_GOOGLE_ID ?? '',
-      clientSecret: process.env.AUTH_GOOGLE_SECRET ?? '',
-      allowDangerousEmailAccountLinking: true,
-    }),
+    ...(process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET
+      ? [
+          Google({
+            clientId: process.env.AUTH_GOOGLE_ID,
+            clientSecret: process.env.AUTH_GOOGLE_SECRET,
+            allowDangerousEmailAccountLinking: true,
+          }),
+        ]
+      : []),
     ...(process.env.EMAIL_SERVER && process.env.EMAIL_FROM
       ? [
           Nodemailer({
