@@ -12,17 +12,17 @@ import {
 import { DoctorVisitExport } from '@/lib/services/reports';
 
 const styles = StyleSheet.create({
-  page: { padding: 32, fontSize: 10, fontFamily: 'Helvetica' },
-  title: { fontSize: 18, marginBottom: 8, fontFamily: 'Helvetica-Bold' },
-  subtitle: { fontSize: 11, marginBottom: 16, color: '#555' },
-  sectionTitle: { fontSize: 13, marginTop: 16, marginBottom: 8, fontFamily: 'Helvetica-Bold' },
-  row: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#ddd', paddingVertical: 4 },
-  headerRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#333', paddingVertical: 4, fontFamily: 'Helvetica-Bold' },
+  page: { padding: 32, fontSize: 10, fontFamily: 'Helvetica', backgroundColor: '#f6efe4', color: '#38332c' },
+  title: { fontSize: 18, marginBottom: 8, fontFamily: 'Helvetica-Bold', color: '#8f3d28' },
+  subtitle: { fontSize: 11, marginBottom: 16, color: '#6d655a' },
+  sectionTitle: { fontSize: 13, marginTop: 16, marginBottom: 8, fontFamily: 'Helvetica-Bold', color: '#38332c' },
+  row: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#e9e0d1', paddingVertical: 4 },
+  headerRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#38332c', paddingVertical: 4, fontFamily: 'Helvetica-Bold' },
   cell: { flex: 1 },
   smallCell: { width: 60 },
-  muted: { color: '#666' },
+  muted: { color: '#6d655a' },
   incident: { marginBottom: 4 },
-  caveat: { marginTop: 16, fontSize: 9, color: '#999', fontFamily: 'Helvetica-Oblique' },
+  caveat: { marginTop: 16, fontSize: 9, color: '#9b9284', fontFamily: 'Helvetica-Oblique' },
 });
 
 function formatDate(date: Date) {
@@ -97,7 +97,7 @@ export default function DoctorVisitReport({ data }: { data: DoctorVisitExport })
                 y1={height - padding}
                 x2={width - padding}
                 y2={height - padding}
-                stroke="#ccc"
+                stroke="#e9e0d1"
                 strokeWidth={1}
               />
               <Line
@@ -105,13 +105,13 @@ export default function DoctorVisitReport({ data }: { data: DoctorVisitExport })
                 y1={padding}
                 x2={padding}
                 y2={height - padding}
-                stroke="#ccc"
+                stroke="#e9e0d1"
                 strokeWidth={1}
               />
               <Polyline
                 points={polylinePoints}
                 fill="none"
-                stroke="#2563eb"
+                stroke="#d2694a"
                 strokeWidth={2}
               />
             </G>

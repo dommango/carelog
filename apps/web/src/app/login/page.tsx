@@ -4,7 +4,7 @@ import LoginForm from './login-form';
 
 export default function LoginPage() {
   return (
-    <div className="min-h-[80vh] flex flex-col items-center justify-center p-4">
+    <div className="cc flex min-h-[100dvh] flex-col justify-center bg-sand px-[30px] py-11">
       <Suspense fallback={null}>
         <LoginForm googleEnabled={googleEnabled} />
       </Suspense>
