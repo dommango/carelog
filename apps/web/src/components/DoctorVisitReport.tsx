@@ -10,19 +10,20 @@ import {
   G,
 } from '@react-pdf/renderer';
 import { DoctorVisitExport } from '@/lib/services/reports';
+import { themeColors } from '@/lib/theme-colors';
 
 const styles = StyleSheet.create({
-  page: { padding: 32, fontSize: 10, fontFamily: 'Helvetica', backgroundColor: '#f6efe4', color: '#38332c' },
-  title: { fontSize: 18, marginBottom: 8, fontFamily: 'Helvetica-Bold', color: '#8f3d28' },
-  subtitle: { fontSize: 11, marginBottom: 16, color: '#6d655a' },
-  sectionTitle: { fontSize: 13, marginTop: 16, marginBottom: 8, fontFamily: 'Helvetica-Bold', color: '#38332c' },
-  row: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#e9e0d1', paddingVertical: 4 },
-  headerRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#38332c', paddingVertical: 4, fontFamily: 'Helvetica-Bold' },
+  page: { padding: 32, fontSize: 10, fontFamily: 'Helvetica', backgroundColor: themeColors.sand, color: themeColors.ink },
+  title: { fontSize: 18, marginBottom: 8, fontFamily: 'Helvetica-Bold', color: themeColors.accentDeep },
+  subtitle: { fontSize: 11, marginBottom: 16, color: themeColors.inkSoft },
+  sectionTitle: { fontSize: 13, marginTop: 16, marginBottom: 8, fontFamily: 'Helvetica-Bold', color: themeColors.ink },
+  row: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: themeColors.line, paddingVertical: 4 },
+  headerRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: themeColors.ink, paddingVertical: 4, fontFamily: 'Helvetica-Bold' },
   cell: { flex: 1 },
   smallCell: { width: 60 },
-  muted: { color: '#6d655a' },
+  muted: { color: themeColors.inkSoft },
   incident: { marginBottom: 4 },
-  caveat: { marginTop: 16, fontSize: 9, color: '#9b9284', fontFamily: 'Helvetica-Oblique' },
+  caveat: { marginTop: 16, fontSize: 9, color: themeColors.inkFaint, fontFamily: 'Helvetica-Oblique' },
 });
 
 function formatDate(date: Date) {
@@ -97,7 +98,7 @@ export default function DoctorVisitReport({ data }: { data: DoctorVisitExport })
                 y1={height - padding}
                 x2={width - padding}
                 y2={height - padding}
-                stroke="#e9e0d1"
+                stroke={themeColors.line}
                 strokeWidth={1}
               />
               <Line
@@ -105,13 +106,13 @@ export default function DoctorVisitReport({ data }: { data: DoctorVisitExport })
                 y1={padding}
                 x2={padding}
                 y2={height - padding}
-                stroke="#e9e0d1"
+                stroke={themeColors.line}
                 strokeWidth={1}
               />
               <Polyline
                 points={polylinePoints}
                 fill="none"
-                stroke="#d2694a"
+                stroke={themeColors.accent}
                 strokeWidth={2}
               />
             </G>

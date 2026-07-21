@@ -14,6 +14,7 @@ import {
   Legend,
 } from 'recharts';
 import Link from 'next/link';
+import { themeColors } from '@/lib/theme-colors';
 
 type AdherenceRow = {
   scheduleId: string;
@@ -181,13 +182,13 @@ export default function ReportsDashboard({
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={moodData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e9e0d1" />
-              <XAxis dataKey="date" stroke="#9b9284" tick={{ fill: '#9b9284', fontSize: 12 }} />
-              <YAxis domain={[1, 5]} allowDecimals stroke="#9b9284" tick={{ fill: '#9b9284', fontSize: 12 }} />
+              <CartesianGrid strokeDasharray="3 3" stroke={themeColors.line} />
+              <XAxis dataKey="date" stroke={themeColors.inkFaint} tick={{ fill: themeColors.inkFaint, fontSize: 12 }} />
+              <YAxis domain={[1, 5]} allowDecimals stroke={themeColors.inkFaint} tick={{ fill: themeColors.inkFaint, fontSize: 12 }} />
               <Tooltip
                 contentStyle={{
-                  background: '#fffdf9',
-                  border: '1px solid #e9e0d1',
+                  background: themeColors.card,
+                  border: `1px solid ${themeColors.line}`,
                   borderRadius: 10,
                   fontFamily: 'Mulish, sans-serif',
                 }}
@@ -195,9 +196,9 @@ export default function ReportsDashboard({
               <Line
                 type="monotone"
                 dataKey="averageMood"
-                stroke="#d2694a"
+                stroke={themeColors.accent}
                 strokeWidth={2}
-                dot={{ r: 4, fill: '#d2694a' }}
+                dot={{ r: 4, fill: themeColors.accent }}
                 connectNulls
               />
             </LineChart>
@@ -210,20 +211,20 @@ export default function ReportsDashboard({
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data.mealHydration}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e9e0d1" />
-              <XAxis dataKey="date" stroke="#9b9284" tick={{ fill: '#9b9284', fontSize: 12 }} />
-              <YAxis allowDecimals={false} stroke="#9b9284" tick={{ fill: '#9b9284', fontSize: 12 }} />
+              <CartesianGrid strokeDasharray="3 3" stroke={themeColors.line} />
+              <XAxis dataKey="date" stroke={themeColors.inkFaint} tick={{ fill: themeColors.inkFaint, fontSize: 12 }} />
+              <YAxis allowDecimals={false} stroke={themeColors.inkFaint} tick={{ fill: themeColors.inkFaint, fontSize: 12 }} />
               <Tooltip
                 contentStyle={{
-                  background: '#fffdf9',
-                  border: '1px solid #e9e0d1',
+                  background: themeColors.card,
+                  border: `1px solid ${themeColors.line}`,
                   borderRadius: 10,
                   fontFamily: 'Mulish, sans-serif',
                 }}
               />
-              <Legend wrapperStyle={{ fontSize: 12.5, fontWeight: 700, color: '#6d655a' }} />
-              <Bar dataKey="meals" fill="#b08968" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="hydration" fill="#6d8190" radius={[4, 4, 0, 0]} />
+              <Legend wrapperStyle={{ fontSize: 12.5, fontWeight: 700, color: themeColors.inkSoft }} />
+              <Bar dataKey="meals" fill={themeColors.tier2} radius={[4, 4, 0, 0]} />
+              <Bar dataKey="hydration" fill={themeColors.caregiver} radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
