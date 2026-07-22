@@ -47,7 +47,7 @@ Postgres, local `DATABASE_URL=postgresql://carelog:carelog@localhost:5436/carelo
 
 ## Env
 
-No `.env.example` is committed — vars live in `apps/web/.env.local`, `apps/worker/.env`, `packages/db/.env`. Names in use: `DATABASE_URL`, `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, `AUTH_GOOGLE_ID`/`AUTH_GOOGLE_SECRET`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `STORAGE_ROOT`, `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/`VAPID_SUBJECT`, `TWILIO_ACCOUNT_SID`/`TWILIO_AUTH_TOKEN`/`TWILIO_PHONE_NUMBER`.
+No `.env.example` is committed — vars live in `apps/web/.env.local`, `apps/worker/.env`, `packages/db/.env`. Names in use: `DATABASE_URL`, `AUTH_SECRET`, `AUTH_URL`, `AUTH_GOOGLE_ID`/`AUTH_GOOGLE_SECRET`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `STORAGE_ROOT`, `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/`VAPID_SUBJECT`, `TWILIO_ACCOUNT_SID`/`TWILIO_AUTH_TOKEN`/`TWILIO_PHONE_NUMBER`. Google sign-in is env-gated (`apps/web/src/lib/env.ts`) — the app boots fine with those two unset, just without the Google provider. `AUTH_SECRET`/`AUTH_URL` are the canonical next-auth v5 names; the legacy `NEXTAUTH_SECRET`/`NEXTAUTH_URL` are aliased by the library and still work, but new code/docs should use the `AUTH_*` names. `trustHost: true` is set in `auth.ts` for Railway's proxy, so `AUTH_URL` itself is optional — Auth.js infers the origin from the request.
 
 ## Architecture notes
 
