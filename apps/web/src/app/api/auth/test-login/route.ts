@@ -44,8 +44,12 @@ export async function POST(request: NextRequest) {
   });
 
   // Auth.js uses a secure-prefixed cookie name over HTTPS; match its convention
-  // so the manually-created session is recognized in production too.
-  const useSecure = (process.env.NEXTAUTH_URL ?? '').startsWith('https://');
+  // so the manually-created session is recognized in production too. Derived
+  // from the actual request (not an env var) so it's correct behind Railway's
+  // proxy regardless of which URL env var is set.
+  const useSecure =
+    request.nextUrl.protocol === 'https:' ||
+    request.headers.get('x-forwarded-proto') === 'https';
   const cookieName = useSecure ? '__Secure-authjs.session-token' : 'authjs.session-token';
   const cookieStore = await cookies();
   cookieStore.set(cookieName, sessionToken, {

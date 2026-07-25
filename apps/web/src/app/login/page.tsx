@@ -1,5 +1,5 @@
 import { Suspense } from 'react';
-import { googleEnabled } from '@/auth';
+import { googleEnabled } from '@/lib/env';
 import LoginForm from './login-form';
 
 export default function LoginPage() {
