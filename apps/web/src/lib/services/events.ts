@@ -6,6 +6,7 @@ import { ForbiddenError, NotFoundError } from '@/lib/errors';
 import { CreateEventInput, UpdateEventInput } from '@/lib/zod';
 import { EventStatus, AttachmentKind } from '@carelog/db';
 import { getStorage } from '@carelog/storage';
+import { enqueue, AI_PROCESS_EVENT } from '@carelog/queue';
 import { markAcknowledged } from '@/lib/services/notifications';
 
 export type CreateEventResult = {
@@ -97,6 +98,15 @@ export async function createEvent(actor: Actor, input: CreateEventInput): Promis
         result.event.occurredAt
       ).catch((err) => {
         console.error('Failed to acknowledge notification:', err);
+      });
+    }
+
+    // Text-only events have no upload step, so enqueue AI enrichment now.
+    // Events with attachments are enqueued once their media finishes uploading
+    // (see /api/attachments/[id]/complete) so the worker can read the files.
+    if ((input.attachments ?? []).length === 0) {
+      await enqueue(AI_PROCESS_EVENT, { eventId: result.event.id }).catch((err) => {
+        console.error('Failed to enqueue AI processing:', err);
       });
     }
   }

@@ -2,6 +2,13 @@
 @import "../styles/tokens.css";
 @import "../styles/primitives.css";
 
+/* CareLog ships light-only by design: the warm sand palette is the brand and the
+   caregiver audience skews older, where a sudden dark UI hurts legibility. There are
+   deliberately no dark tokens; color-scheme keeps UA form controls light to match. */
+:root {
+  color-scheme: light;
+}
+
 body {
   background: var(--sand);
   color: var(--ink);

@@ -7,8 +7,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: 'Family care activity log',
     start_url: '/',
     display: 'standalone',
-    background_color: '#ffffff',
-    theme_color: '#3b82f6',
+    background_color: '#f6efe4',
+    theme_color: '#fffdf9',
     icons: [
       {
         src: '/icon-192x192.svg',

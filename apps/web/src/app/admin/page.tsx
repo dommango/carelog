@@ -21,7 +21,7 @@ export default async function AdminPage() {
   const actor = await getActor(session.user.id as string);
   if (!actor || actor.role !== 'admin') {
     return (
-      <div className="max-w-2xl mx-auto p-8 text-red-600">Admin access only.</div>
+      <div className="mx-auto max-w-2xl p-8 text-center text-accent-deep">Admin access only.</div>
     );
   }
 
@@ -122,20 +122,20 @@ export default async function AdminPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-8">
-      <h1 className="text-xl font-semibold">Admin</h1>
+    <div className="mx-auto max-w-2xl space-y-4">
+      <h1 className="cc-serif text-[22px]">Admin</h1>
 
-      <section className="bg-white p-4 rounded-lg border">
-        <h2 className="font-medium mb-3">Invite caregiver</h2>
+      <section className="cc-card">
+        <h2 className="cc-eyebrow mb-3">Invite caregiver</h2>
         <form action={inviteAction} className="space-y-3">
           <input
             name="email"
             type="email"
             placeholder="Email"
             required
-            className="w-full border rounded p-2"
+            className="cc-input"
           />
-          <select name="role" required className="w-full border rounded p-2">
+          <select name="role" required className="cc-input">
             <option value="caregiver">Caregiver</option>
             <option value="viewer">Viewer</option>
             <option value="admin">Admin</option>
@@ -143,38 +143,38 @@ export default async function AdminPage() {
           <input type="hidden" name="patientId" value={patient.id} />
           <button
             type="submit"
-            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+            className="cc-btn cc-btn--primary"
           >
             Invite
           </button>
         </form>
       </section>
 
-      <section className="bg-white p-4 rounded-lg border">
-        <h2 className="font-medium mb-3">Caregivers</h2>
-        <ul className="divide-y">
+      <section className="cc-card">
+        <h2 className="cc-eyebrow mb-3">Caregivers</h2>
+        <ul className="divide-y divide-line">
           {caregivers.map((assignment) => (
             <li
               key={assignment.id}
               className="py-2 flex items-center justify-between"
             >
               <span>{assignment.user.name ?? assignment.user.email}</span>
-              <span className="text-sm text-gray-500">{assignment.role}</span>
+              <span className="text-sm text-ink-faint">{assignment.role}</span>
             </li>
           ))}
         </ul>
       </section>
 
-      <section className="bg-white p-4 rounded-lg border">
-        <h2 className="font-medium mb-3">New template</h2>
+      <section className="cc-card">
+        <h2 className="cc-eyebrow mb-3">New template</h2>
         <form action={templateAction} className="space-y-3">
           <input
             name="name"
             placeholder="Template name"
             required
-            className="w-full border rounded p-2"
+            className="cc-input"
           />
-          <select name="category" required className="w-full border rounded p-2">
+          <select name="category" required className="cc-input">
             {categories.map((c) => (
               <option key={c} value={c}>
                 {c}
@@ -185,27 +185,27 @@ export default async function AdminPage() {
             name="defaults"
             placeholder='JSON defaults, e.g. {"medication":"Albuterol"}'
             rows={3}
-            className="w-full border rounded p-2"
+            className="cc-input"
           />
           <button
             type="submit"
-            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+            className="cc-btn cc-btn--primary"
           >
             Create template
           </button>
         </form>
       </section>
 
-      <section className="bg-white p-4 rounded-lg border">
-        <h2 className="font-medium mb-3">New schedule</h2>
+      <section className="cc-card">
+        <h2 className="cc-eyebrow mb-3">New schedule</h2>
         <form action={scheduleAction} className="space-y-3">
           <input
             name="name"
             placeholder="Schedule name, e.g. Morning nebulizer"
             required
-            className="w-full border rounded p-2"
+            className="cc-input"
           />
-          <select name="recurrence" required className="w-full border rounded p-2">
+          <select name="recurrence" required className="cc-input">
             <option value="daily">Daily</option>
             <option value="weekly">Weekly</option>
             <option value="hourly">Every N hours</option>
@@ -214,11 +214,11 @@ export default async function AdminPage() {
             name="time"
             type="time"
             defaultValue="08:00"
-            className="w-full border rounded p-2"
+            className="cc-input"
           />
           <div className="flex flex-wrap gap-2">
             {['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'].map((d) => (
-              <label key={d} className="text-sm">
+              <label key={d} className="text-sm font-semibold text-ink-soft">
                 <input type="checkbox" name="days" value={d} /> {d}
               </label>
             ))}
@@ -228,7 +228,7 @@ export default async function AdminPage() {
             type="number"
             min={1}
             placeholder="Interval (hours, for hourly only)"
-            className="w-full border rounded p-2"
+            className="cc-input"
           />
           <input
             name="windowMinutes"
@@ -236,15 +236,15 @@ export default async function AdminPage() {
             min={1}
             defaultValue={90}
             placeholder="Window minutes"
-            className="w-full border rounded p-2"
+            className="cc-input"
           />
           <input
             name="remindOffsets"
             placeholder="Reminder offsets in minutes, e.g. 0,15"
             defaultValue="0"
-            className="w-full border rounded p-2"
+            className="cc-input"
           />
-          <select name="templateId" className="w-full border rounded p-2">
+          <select name="templateId" className="cc-input">
             <option value="">No linked template</option>
             {templates.map((t) => (
               <option key={t.id} value={t.id}>
@@ -257,25 +257,25 @@ export default async function AdminPage() {
             type="number"
             min={0}
             placeholder="Escalate after N minutes"
-            className="w-full border rounded p-2"
+            className="cc-input"
           />
           <input
             name="escalationNotify"
             placeholder="Escalation user IDs, comma separated"
-            className="w-full border rounded p-2"
+            className="cc-input"
           />
           <button
             type="submit"
-            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+            className="cc-btn cc-btn--primary"
           >
             Create schedule
           </button>
         </form>
       </section>
 
-      <section className="bg-white p-4 rounded-lg border">
-        <h2 className="font-medium mb-3">Templates</h2>
-        <ul className="divide-y">
+      <section className="cc-card">
+        <h2 className="cc-eyebrow mb-3">Templates</h2>
+        <ul className="divide-y divide-line">
           {templates.map((template) => (
             <li
               key={template.id}
@@ -283,17 +283,17 @@ export default async function AdminPage() {
             >
               <div>
                 <span>{template.name}</span>
-                <span className="text-sm text-gray-500 ml-2">{template.category}</span>
+                <span className="ml-2 text-sm text-ink-faint">{template.category}</span>
               </div>
-              <span className="text-sm text-gray-500">{template.usageCount} uses</span>
+              <span className="text-sm text-ink-faint">{template.usageCount} uses</span>
             </li>
           ))}
         </ul>
       </section>
 
-      <section className="bg-white p-4 rounded-lg border">
-        <h2 className="font-medium mb-3">Schedules</h2>
-        <ul className="divide-y">
+      <section className="cc-card">
+        <h2 className="cc-eyebrow mb-3">Schedules</h2>
+        <ul className="divide-y divide-line">
           {schedules.map((schedule) => (
             <li
               key={schedule.id}
@@ -301,13 +301,13 @@ export default async function AdminPage() {
             >
               <div>
                 <span>{schedule.name}</span>
-                <span className="text-sm text-gray-500 ml-2">{schedule.rrule}</span>
+                <span className="ml-2 text-sm text-ink-faint">{schedule.rrule}</span>
               </div>
               <form action={scheduleDeleteAction}>
                 <input type="hidden" name="id" value={schedule.id} />
                 <button
                   type="submit"
-                  className="text-sm text-red-600 hover:underline"
+                  className="text-sm font-bold text-accent-deep hover:underline"
                 >
                   Pause
                 </button>
