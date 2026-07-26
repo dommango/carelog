@@ -78,20 +78,29 @@ test('airplane-mode capture syncs exactly one non-duplicated event', async ({ pa
   expect(offlineEvent).toBeTruthy();
   expect(offlineEvent!.rawInput).toBe('Offline test breakfast');
 
-  // Go online and wait for the outbox to drain.
+  // Go online and let the outbox drain. Poll instead of sleeping a fixed
+  // interval: drain time tracks runner speed, and a hardcoded 3s wait is what
+  // made this test fail on its first attempt in CI and pass on retry.
   await context.setOffline(false);
-  await page.waitForTimeout(3000);
 
-  // Trigger a delta sync from the page and verify the event persisted server-side.
-  const syncedEvent = await page.evaluate(async () => {
-    const test = window.__CARELOG_TEST__;
-    if (!test) throw new Error('Test helpers not exposed');
-    const cursor = await test.getSyncCursor();
-    const data = await test.pullDelta(cursor);
-    return data.events.find((e) => e.rawInput === 'Offline test breakfast');
-  });
-  expect(syncedEvent).toBeTruthy();
-  expect(syncedEvent!.id).toBe(offlineEventId);
+  let syncedEventId: string | undefined;
+  await expect
+    .poll(
+      async () => {
+        syncedEventId = await page.evaluate(async () => {
+          const test = window.__CARELOG_TEST__;
+          if (!test) throw new Error('Test helpers not exposed');
+          const cursor = await test.getSyncCursor();
+          const data = await test.pullDelta(cursor);
+          return data.events.find((e) => e.rawInput === 'Offline test breakfast')?.id;
+        });
+        return syncedEventId;
+      },
+      { timeout: 20_000, intervals: [250, 500, 1000, 1000, 2000] }
+    )
+    .toBeTruthy();
+
+  expect(syncedEventId).toBe(offlineEventId);
 
   // Open a fresh browser context and verify the event appears exactly once.
   const newContext = await context.browser()!.newContext();
