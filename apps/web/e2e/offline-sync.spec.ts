@@ -87,13 +87,14 @@ test('airplane-mode capture syncs exactly one non-duplicated event', async ({ pa
   await expect
     .poll(
       async () => {
-        syncedEventId = await page.evaluate(async () => {
+        const found = await page.evaluate(async () => {
           const test = window.__CARELOG_TEST__;
           if (!test) throw new Error('Test helpers not exposed');
           const cursor = await test.getSyncCursor();
           const data = await test.pullDelta(cursor);
           return data.events.find((e) => e.rawInput === 'Offline test breakfast')?.id;
         });
+        syncedEventId = found as string | undefined;
         return syncedEventId;
       },
       { timeout: 20_000, intervals: [250, 500, 1000, 1000, 2000] }
