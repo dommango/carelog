@@ -1,0 +1,153 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: typecheck · test · lint · build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: carelog
+          POSTGRES_PASSWORD: carelog
+          POSTGRES_DB: carelog
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U carelog"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      # CI-only values, never real secrets. The Postgres URL points at the
+      # service above, which the vitest suites genuinely truncate and seed.
+      # AUTH_SECRET only satisfies the production check in src/lib/env.ts, and
+      # STORAGE_ROOT just keeps attachment writes out of the checkout.
+      DATABASE_URL: postgresql://carelog:carelog@localhost:5432/carelog
+      AUTH_SECRET: ci-only-secret-at-least-32-characters-long
+      STORAGE_ROOT: /tmp/carelog-storage
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # No `version` input: pnpm/action-setup reads packageManager from
+      # package.json, so the pin can't drift from the repo's own declaration.
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 20 # next@16 requires >=20.9.0; repo declares no range
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # The Prisma client is generated rather than committed, and every
+      # @carelog/* package is consumed through its built dist/ (main + types
+      # point there). Both must exist before anything resolves those imports.
+      - name: Generate Prisma client
+        run: pnpm db:generate
+
+      - name: Build workspace packages
+        run: pnpm --filter "./packages/*" build
+
+      # Most vitest suites are integration tests that hit a real database.
+      - name: Push schema to the test database
+        run: pnpm db:push
+
+      # No typecheck script in the repo — call tsc directly, per CLAUDE.md.
+      - name: Typecheck
+        run: pnpm --filter web exec tsc --noEmit
+
+      - name: Test
+        run: pnpm test
+
+      - name: Lint
+        run: pnpm --filter web lint
+
+      - name: Build web
+        run: pnpm build
+
+      - name: Build worker
+        run: pnpm worker:build
+
+  e2e:
+    name: playwright e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: carelog
+          POSTGRES_PASSWORD: carelog
+          POSTGRES_DB: carelog
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U carelog"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      # As above: CI-only, no real secrets. Playwright's webServer seeds this
+      # database and boots the dev server against it.
+      DATABASE_URL: postgresql://carelog:carelog@localhost:5432/carelog
+      AUTH_SECRET: ci-only-secret-at-least-32-characters-long
+      STORAGE_ROOT: /tmp/carelog-storage
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm db:generate
+
+      - name: Build workspace packages
+        run: pnpm --filter "./packages/*" build
+
+      - name: Push schema to the test database
+        run: pnpm db:push
+
+      - name: Install Playwright browser
+        run: pnpm --filter web exec playwright install --with-deps chromium
+
+      - name: Run end-to-end tests
+        run: pnpm --filter web test:e2e
+
+      # The Playwright config uses the `list` reporter, so there is no HTML
+      # report — only traces written on first retry.
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: failure()
+        with:
+          name: playwright-traces
+          path: apps/web/test-results/
+          retention-days: 7
+          if-no-files-found: ignore
