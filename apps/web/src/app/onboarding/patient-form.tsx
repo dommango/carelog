@@ -5,7 +5,7 @@ import { createPatientAction, type PatientFormState } from './actions';
 
 const initialState: PatientFormState = { error: null };
 
-export default function PatientForm() {
+export default function PatientForm({ today }: { today: string }) {
   const [state, formAction, pending] = useActionState(createPatientAction, initialState);
 
   return (
@@ -33,7 +33,13 @@ export default function PatientForm() {
 
       <label className="block space-y-1">
         <span className="cc-eyebrow">Date of birth (optional)</span>
-        <input name="dateOfBirth" type="date" className="cc-input" />
+        <input
+          name="dateOfBirth"
+          type="date"
+          min="1900-01-01"
+          max={today}
+          className="cc-input"
+        />
       </label>
 
       <label className="block space-y-1">

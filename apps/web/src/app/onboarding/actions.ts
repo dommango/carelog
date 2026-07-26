@@ -33,11 +33,13 @@ export async function createPatientAction(
   try {
     await createPatient(session.user.id as string, parsed.data);
   } catch (error) {
-    if (error instanceof ForbiddenError) {
-      return { error: error.message };
+    // Already onboarded — a second tab, or a retry after a transient failure
+    // that actually committed. Sending them to their care circle is the
+    // truthful outcome; an error here would strand them on a dead page.
+    if (!(error instanceof ForbiddenError)) {
+      console.error('Failed to create patient profile:', error);
+      return { error: 'Could not create the profile. Please try again.' };
     }
-    console.error('Failed to create patient profile:', error);
-    return { error: 'Could not create the profile. Please try again.' };
   }
 
   revalidatePath('/', 'layout');

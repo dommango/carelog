@@ -38,9 +38,11 @@ export default async function RootLayout({
   const user = session?.user;
 
   let patientName: string | null = null;
+  let hasCareCircle = false;
   if (user?.id) {
     const actor = await getActor(user.id as string);
     if (actor) {
+      hasCareCircle = true;
       const patients = await listPatients(actor);
       patientName = patients[0]?.name ?? null;
     }
@@ -81,7 +83,7 @@ export default async function RootLayout({
                 </div>
               </header>
               <main className="flex-1 px-4 py-[18px] pb-24">{children}</main>
-              {patientName && <BottomTabBar />}
+              {hasCareCircle && <BottomTabBar />}
             </div>
           ) : (
             <main className="min-h-full">{children}</main>

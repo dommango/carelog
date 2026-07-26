@@ -27,6 +27,10 @@ export async function GET() {
   }
 }
 
+// Unlike every sibling POST route, this one resolves no Actor: it is the
+// onboarding path, so by definition the caller has no assignment yet.
+// createPatient owns the authorization check (and the lock that keeps two
+// concurrent calls from creating two care circles).
 export async function POST(request: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) {

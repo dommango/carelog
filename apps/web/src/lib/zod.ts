@@ -33,9 +33,17 @@ export const createTemplateSchema = z.object({
   defaults: z.record(z.string(), z.unknown()),
 });
 
+const EARLIEST_DOB = Date.parse('1900-01-01');
+
 export const createPatientSchema = z.object({
   name: z.string().trim().min(1, 'Required').max(120),
-  dateOfBirth: z.iso.date().optional(),
+  dateOfBirth: z.iso
+    .date()
+    .refine((value) => {
+      const parsed = Date.parse(value);
+      return parsed >= EARLIEST_DOB && parsed <= Date.now();
+    }, 'Enter a date of birth in the past')
+    .optional(),
   medicalNotes: z.string().trim().max(2000).optional(),
 });
 

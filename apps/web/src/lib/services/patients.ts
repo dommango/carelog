@@ -1,7 +1,6 @@
 import { Role } from '@carelog/db';
 import { prisma } from '@/lib/prisma';
 import { Actor, can } from '@/lib/policy';
-import { writeAudit } from '@/lib/audit';
 import { ForbiddenError } from '@/lib/errors';
 import { CreatePatientInput } from '@/lib/zod';
 
@@ -32,7 +31,13 @@ export async function listPatients(actor: Actor) {
  * The creator becomes the patient's admin.
  */
 export async function createPatient(userId: string, input: CreatePatientInput) {
-  const result = await prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx) => {
+    // Serialize concurrent onboarding for this user. Two parallel requests
+    // would otherwise both read zero assignments under READ COMMITTED and
+    // each create its own patient — and the (userId, patientId) unique
+    // constraint can't catch that, because the patient ids differ.
+    await tx.$executeRaw`SELECT id FROM users WHERE id = ${userId} FOR UPDATE`;
+
     const existing = await tx.caregiverAssignment.findFirst({
       where: { userId, revokedAt: null },
     });
@@ -48,22 +53,30 @@ export async function createPatient(userId: string, input: CreatePatientInput) {
       },
     });
 
-    const assignment = await tx.caregiverAssignment.create({
+    await tx.caregiverAssignment.create({
       data: { userId, patientId: patient.id, role: Role.admin },
     });
 
-    return { patient, assignment };
-  });
+    // Audited inside the transaction: an audit failure must not leave a
+    // committed patient behind that the caller was told didn't happen.
+    // `medicalNotes` is deliberately excluded — audit_log is append-only,
+    // so PHI written here could never be scrubbed.
+    await tx.auditLog.create({
+      data: {
+        actorType: 'user',
+        actorId: userId,
+        action: 'patient.create',
+        entityType: 'patient',
+        entityId: patient.id,
+        after: {
+          id: patient.id,
+          name: patient.name,
+          dateOfBirth: patient.dateOfBirth?.toISOString() ?? null,
+          hasMedicalNotes: Boolean(patient.medicalNotes),
+        },
+      },
+    });
 
-  await writeAudit({
-    actorType: 'user',
-    actorId: userId,
-    action: 'patient.create',
-    entityType: 'patient',
-    entityId: result.patient.id,
-    after: result.patient as unknown as Record<string, unknown>,
-    clientId: result.patient.id,
+    return patient;
   });
-
-  return result.patient;
 }

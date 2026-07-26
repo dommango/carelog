@@ -25,7 +25,7 @@ export default async function OnboardingPage() {
       </div>
 
       <section className="cc-card">
-        <PatientForm />
+        <PatientForm today={new Date().toISOString().slice(0, 10)} />
       </section>
     </div>
   );

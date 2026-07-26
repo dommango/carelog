@@ -1,6 +1,7 @@
-import { describe, it, expect, beforeEach } from 'vitest';
 import { config } from 'dotenv';
 config({ path: '.env.local' });
+
+import { describe, it, expect, beforeEach } from 'vitest';
 
 import { prisma } from '@/lib/prisma';
 import { createPatient, listPatients } from '@/lib/services/patients';
@@ -86,14 +87,53 @@ describe('patients service', () => {
     expect(second.name).toBe('Dad');
   });
 
-  it('writes an audit row for the creation', async () => {
+  it('creates only one care circle when two requests race', async () => {
     const user = await newUser();
-    const patient = await createPatient(user.id, { name: 'Mom' });
+
+    const results = await Promise.allSettled([
+      createPatient(user.id, { name: 'Mom' }),
+      createPatient(user.id, { name: 'Dad' }),
+    ]);
+
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    expect(await prisma.patient.count()).toBe(1);
+    expect(
+      await prisma.caregiverAssignment.count({ where: { userId: user.id, revokedAt: null } })
+    ).toBe(1);
+  });
+
+  it('writes an audit row for the creation without copying PHI into it', async () => {
+    const user = await newUser();
+    const patient = await createPatient(user.id, {
+      name: 'Mom',
+      medicalNotes: 'COPD, penicillin allergy',
+    });
 
     const audit = await prisma.auditLog.findFirst({
       where: { action: 'patient.create', entityId: patient.id },
     });
     expect(audit?.actorId).toBe(user.id);
     expect(audit?.entityType).toBe('patient');
+    expect(JSON.stringify(audit?.after)).not.toContain('penicillin');
+    expect((audit?.after as Record<string, unknown>).hasMedicalNotes).toBe(true);
+  });
+
+  it('rolls the patient back if the audit write fails', async () => {
+    const user = await newUser();
+    // Force the audit insert to fail, then assert the patient it was meant to
+    // describe never survives on its own.
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE "audit_log" ADD CONSTRAINT audit_log_no_patient_create CHECK (action <> 'patient.create')`
+    );
+
+    try {
+      await expect(createPatient(user.id, { name: 'Mom' })).rejects.toThrow();
+      expect(await prisma.patient.count()).toBe(0);
+      expect(await prisma.caregiverAssignment.count()).toBe(0);
+    } finally {
+      await prisma.$executeRawUnsafe(
+        `ALTER TABLE "audit_log" DROP CONSTRAINT audit_log_no_patient_create`
+      );
+    }
   });
 });
