@@ -87,3 +87,67 @@ jobs:
       - name: Build worker
         run: pnpm worker:build
 
+  e2e:
+    name: playwright e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: carelog
+          POSTGRES_PASSWORD: carelog
+          POSTGRES_DB: carelog
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U carelog"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      # As above: CI-only, no real secrets. Playwright's webServer seeds this
+      # database and boots the dev server against it.
+      DATABASE_URL: postgresql://carelog:carelog@localhost:5432/carelog
+      AUTH_SECRET: ci-only-secret-at-least-32-characters-long
+      STORAGE_ROOT: /tmp/carelog-storage
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm db:generate
+
+      - name: Build workspace packages
+        run: pnpm --filter "./packages/*" build
+
+      - name: Push schema to the test database
+        run: pnpm db:push
+
+      - name: Install Playwright browser
+        run: pnpm --filter web exec playwright install --with-deps chromium
+
+      - name: Run end-to-end tests
+        run: pnpm --filter web test:e2e
+
+      # The Playwright config uses the `list` reporter, so there is no HTML
+      # report — only traces written on first retry.
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: failure()
+        with:
+          name: playwright-traces
+          path: apps/web/test-results/
+          retention-days: 7
+          if-no-files-found: ignore
