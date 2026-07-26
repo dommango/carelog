@@ -81,7 +81,7 @@ export default async function RootLayout({
                 </div>
               </header>
               <main className="flex-1 px-4 py-[18px] pb-24">{children}</main>
-              <BottomTabBar />
+              {patientName && <BottomTabBar />}
             </div>
           ) : (
             <main className="min-h-full">{children}</main>

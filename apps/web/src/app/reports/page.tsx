@@ -22,11 +22,7 @@ export default async function ReportsPage() {
 
   const actor = await getActor(session.user.id as string);
   if (!actor) {
-    return (
-      <div className="mx-auto max-w-2xl p-8 text-center text-ink-soft">
-        You do not have access to a patient profile yet.
-      </div>
-    );
+    redirect('/onboarding');
   }
 
   const end = new Date();
