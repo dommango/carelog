@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, fix-dev-auth-strategy]
   pull_request:
-    branches: [main]
+    branches: [main, fix-dev-auth-strategy]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
