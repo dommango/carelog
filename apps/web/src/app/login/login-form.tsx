@@ -59,15 +59,21 @@ export default function LoginForm({ googleEnabled }: { googleEnabled: boolean })
           onSubmit={async (e) => {
             e.preventDefault();
             const formData = new FormData(e.currentTarget);
-            const result = await signIn('credentials', {
-              email: formData.get('email') as string,
-              name: formData.get('name') as string,
-              redirect: false,
+            // Not signIn('credentials') — credentials sign-in requires the JWT
+            // session strategy, and this app uses database sessions. This route
+            // writes the Session row directly.
+            const res = await fetch('/api/auth/test-login', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                email: formData.get('email') as string,
+                name: formData.get('name') as string,
+              }),
             });
-            if (result?.ok) {
+            if (res.ok) {
               window.location.href = '/';
             } else {
-              alert(result?.error ?? 'Sign in failed');
+              alert(`Sign in failed: ${await res.text()}`);
             }
           }}
           className="mt-8 space-y-3 border-t border-line pt-6"

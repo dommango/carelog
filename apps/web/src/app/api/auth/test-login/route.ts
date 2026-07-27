@@ -16,21 +16,23 @@ export async function POST(request: NextRequest) {
   const email = body.email ?? 'admin@carelog.local';
   const name = body.name ?? 'Admin User';
 
-  const patient = await prisma.patient.findFirst({ orderBy: { createdAt: 'asc' } });
-  if (!patient) {
-    return new Response('No patient seeded', { status: 500 });
-  }
-
   let user = await prisma.user.findUnique({ where: { email } });
   if (!user) {
     user = await prisma.user.create({ data: { email, name } });
   }
 
-  await prisma.caregiverAssignment.upsert({
-    where: { userId_patientId: { userId: user.id, patientId: patient.id } },
-    update: {},
-    create: { userId: user.id, patientId: patient.id, role: 'admin' },
-  });
+  // Attach to the seeded patient when there is one, so E2E signs in with a
+  // populated care circle. With no patient, sign in anyway and leave the user
+  // unassigned — that is a real signup state, and the only way to reach the
+  // onboarding flow in development.
+  const patient = await prisma.patient.findFirst({ orderBy: { createdAt: 'asc' } });
+  if (patient) {
+    await prisma.caregiverAssignment.upsert({
+      where: { userId_patientId: { userId: user.id, patientId: patient.id } },
+      update: {},
+      create: { userId: user.id, patientId: patient.id, role: 'admin' },
+    });
+  }
 
   // Create a database session directly.
   const sessionToken = crypto.randomUUID();
