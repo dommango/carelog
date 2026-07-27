@@ -125,7 +125,7 @@ export default async function AdminPage() {
     <div className="mx-auto max-w-2xl space-y-4">
       <h1 className="cc-serif text-[22px]">Admin</h1>
 
-      <section className="cc-card">
+      <section id="invite-caregiver" className="cc-card scroll-mt-4">
         <h2 className="cc-eyebrow mb-3">Invite caregiver</h2>
         <form action={inviteAction} className="space-y-3">
           <input
@@ -150,7 +150,7 @@ export default async function AdminPage() {
         </form>
       </section>
 
-      <section className="cc-card">
+      <section id="caregivers" className="cc-card scroll-mt-4">
         <h2 className="cc-eyebrow mb-3">Caregivers</h2>
         <ul className="divide-y divide-line">
           {caregivers.map((assignment) => (
@@ -165,7 +165,7 @@ export default async function AdminPage() {
         </ul>
       </section>
 
-      <section className="cc-card">
+      <section id="new-template" className="cc-card scroll-mt-4">
         <h2 className="cc-eyebrow mb-3">New template</h2>
         <form action={templateAction} className="space-y-3">
           <input
@@ -196,7 +196,7 @@ export default async function AdminPage() {
         </form>
       </section>
 
-      <section className="cc-card">
+      <section id="new-schedule" className="cc-card scroll-mt-4">
         <h2 className="cc-eyebrow mb-3">New schedule</h2>
         <form action={scheduleAction} className="space-y-3">
           <input
@@ -273,7 +273,7 @@ export default async function AdminPage() {
         </form>
       </section>
 
-      <section className="cc-card">
+      <section id="templates" className="cc-card scroll-mt-4">
         <h2 className="cc-eyebrow mb-3">Templates</h2>
         <ul className="divide-y divide-line">
           {templates.map((template) => (
@@ -291,7 +291,7 @@ export default async function AdminPage() {
         </ul>
       </section>
 
-      <section className="cc-card">
+      <section id="schedules" className="cc-card scroll-mt-4">
         <h2 className="cc-eyebrow mb-3">Schedules</h2>
         <ul className="divide-y divide-line">
           {schedules.map((schedule) => (

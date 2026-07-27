@@ -5,9 +5,13 @@ import { describe, it, expect, beforeEach } from 'vitest';
 
 import { prisma } from '@/lib/prisma';
 import { createPatient, listPatients } from '@/lib/services/patients';
+import { listTemplates } from '@/lib/services/templates';
+import { STARTER_TEMPLATES } from '@/lib/starter-templates';
 import { getActor } from '@/lib/policy';
 import { Role } from '@carelog/db';
 import { ForbiddenError } from '@/lib/errors';
+
+const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name);
 
 async function resetDb() {
   await prisma.$executeRawUnsafe(`
@@ -100,6 +104,44 @@ describe('patients service', () => {
     expect(
       await prisma.caregiverAssignment.count({ where: { userId: user.id, revokedAt: null } })
     ).toBe(1);
+    // The losing transaction must not leave its templates behind either.
+    expect(await prisma.template.count()).toBe(STARTER_TEMPLATES.length);
+  });
+
+  it('seeds the starter templates for the new care circle', async () => {
+    const user = await newUser();
+    const patient = await createPatient(user.id, { name: 'Mom' });
+
+    const templates = await prisma.template.findMany({ where: { patientId: patient.id } });
+
+    expect(templates).toHaveLength(STARTER_TEMPLATES.length);
+    expect(templates.every((t) => t.createdBy === user.id)).toBe(true);
+    expect(templates.every((t) => t.isActive)).toBe(true);
+    expect(templates.map((t) => ({ name: t.name, category: t.category })).sort(byName)).toEqual(
+      STARTER_TEMPLATES.map((t) => ({ name: t.name, category: t.category })).sort(byName)
+    );
+  });
+
+  it('seeds no clinical values into the starter templates', async () => {
+    const user = await newUser();
+    const patient = await createPatient(user.id, { name: 'Mom' });
+
+    const templates = await prisma.template.findMany({ where: { patientId: patient.id } });
+    for (const template of templates) {
+      expect(template.defaults).toEqual({});
+    }
+  });
+
+  it('exposes the seeded templates to the founding admin', async () => {
+    const user = await newUser();
+    await createPatient(user.id, { name: 'Mom' });
+
+    const actor = await getActor(user.id);
+    const templates = await listTemplates(actor!);
+
+    // Proves they will reach the client through the delta-sync pull that feeds
+    // the Quick log chips.
+    expect(templates).toHaveLength(STARTER_TEMPLATES.length);
   });
 
   it('writes an audit row for the creation without copying PHI into it', async () => {
@@ -116,6 +158,9 @@ describe('patients service', () => {
     expect(audit?.entityType).toBe('patient');
     expect(JSON.stringify(audit?.after)).not.toContain('penicillin');
     expect((audit?.after as Record<string, unknown>).hasMedicalNotes).toBe(true);
+    expect((audit?.after as Record<string, unknown>).starterTemplateCount).toBe(
+      STARTER_TEMPLATES.length
+    );
   });
 
   it('rolls the patient back if the audit write fails', async () => {
@@ -130,6 +175,9 @@ describe('patients service', () => {
       await expect(createPatient(user.id, { name: 'Mom' })).rejects.toThrow();
       expect(await prisma.patient.count()).toBe(0);
       expect(await prisma.caregiverAssignment.count()).toBe(0);
+      // Proves the seeding is genuinely inside the transaction, not merely
+      // adjacent to it.
+      expect(await prisma.template.count()).toBe(0);
     } finally {
       await prisma.$executeRawUnsafe(
         `ALTER TABLE "audit_log" DROP CONSTRAINT audit_log_no_patient_create`

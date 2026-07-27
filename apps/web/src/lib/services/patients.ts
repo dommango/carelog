@@ -2,6 +2,7 @@ import { Role } from '@carelog/db';
 import { prisma } from '@/lib/prisma';
 import { Actor, can } from '@/lib/policy';
 import { ForbiddenError } from '@/lib/errors';
+import { STARTER_TEMPLATES } from '@/lib/starter-templates';
 import { CreatePatientInput } from '@/lib/zod';
 
 export async function getPatient(actor: Actor, id: string) {
@@ -57,6 +58,25 @@ export async function createPatient(userId: string, input: CreatePatientInput) {
       data: { userId, patientId: patient.id, role: Role.admin },
     });
 
+    // Seeded through `tx` rather than createTemplate(): that needs a fully
+    // formed Actor, and the assignment above is still uncommitted, so
+    // getActor() can't see it yet. Writing here also keeps the templates
+    // atomic with the patient — no half-built care circle survives a failure.
+    //
+    // Not idempotent by name (Template has no unique constraint), which is
+    // fine: the FOR UPDATE lock above already makes a second run impossible.
+    // Anyone adding a re-seed or "restore defaults" path must add
+    // @@unique([patientId, name]) first.
+    await tx.template.createMany({
+      data: STARTER_TEMPLATES.map((template) => ({
+        patientId: patient.id,
+        name: template.name,
+        category: template.category,
+        defaults: {},
+        createdBy: userId,
+      })),
+    });
+
     // Audited inside the transaction: an audit failure must not leave a
     // committed patient behind that the caller was told didn't happen.
     // `medicalNotes` is deliberately excluded — audit_log is append-only,
@@ -73,6 +93,7 @@ export async function createPatient(userId: string, input: CreatePatientInput) {
           name: patient.name,
           dateOfBirth: patient.dateOfBirth?.toISOString() ?? null,
           hasMedicalNotes: Boolean(patient.medicalNotes),
+          starterTemplateCount: STARTER_TEMPLATES.length,
         },
       },
     });

@@ -2,6 +2,10 @@ import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { getActor } from '@/lib/policy';
 import { listSchedules, expandSchedule } from '@/lib/services/schedules';
+import { hasAnyEvent } from '@/lib/services/events';
+import { listAssignments } from '@/lib/services/invites';
+import { buildOnboardingChecklist, type OnboardingChecklist as Checklist } from '@/lib/onboarding-checklist';
+import { OnboardingChecklist } from '@/components/OnboardingChecklist';
 import Timeline from '@/components/Timeline';
 import Link from 'next/link';
 
@@ -32,8 +36,29 @@ export default async function HomePage() {
 
   upcoming.sort((a, b) => a.dueAt.getTime() - b.dueAt.getTime());
 
+  // Admins only, and not just for tidiness: listAssignments is gated on
+  // `user:invite`, so a caregiver calling it throws and 500s this page. Two of
+  // the four items are also actions `can()` refuses to non-admins, so showing
+  // them a checklist they cannot finish would be a lie.
+  let checklist: Checklist | null = null;
+  if (actor.role === 'admin') {
+    const [hasEvent, assignments] = await Promise.all([
+      hasAnyEvent(actor),
+      listAssignments(actor, actor.assignment.patientId),
+    ]);
+
+    checklist = buildOnboardingChecklist({
+      hasEvent,
+      hasSchedule: schedules.length > 0,
+      // The founder's own assignment is always in this list.
+      hasOtherCaregiver: assignments.length > 1,
+    });
+  }
+
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4">
+      {checklist && <OnboardingChecklist checklist={checklist} />}
+
       {upcoming.length > 0 && (
         <section className="cc-card">
           <h2 className="cc-eyebrow mb-[9px]">Upcoming</h2>
