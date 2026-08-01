@@ -7,6 +7,7 @@ import { SyncProvider } from '@/components/SyncProvider';
 import { OfflineIndicator } from '@/components/OfflineIndicator';
 import { TestExposes } from '@/components/TestExposes';
 import { BottomTabBar } from '@/components/BottomTabBar';
+import { FeedbackWidget } from '@/components/FeedbackWidget';
 import { Icon } from '@/components/Icon';
 import './globals.css';
 
@@ -86,6 +87,9 @@ export default async function RootLayout({
           ) : (
             <main className="min-h-full">{children}</main>
           )}
+          {/* Mounted outside the signed-in branch: the submit route accepts
+              anonymous reports, so sign-in problems can be reported too. */}
+          <FeedbackWidget userEmail={user?.email ?? null} />
         </SyncProvider>
       </body>
     </html>
