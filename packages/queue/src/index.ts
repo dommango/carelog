@@ -5,8 +5,13 @@ export * from './schedules.js';
 
 export const AI_PROCESS_EVENT = 'ai.process_event';
 export const NOTIFICATION_TICK = 'notification.tick';
+export const FEEDBACK_RECONCILE_TICK = 'feedback.reconcile_tick';
 
-export type JobType = typeof AI_PROCESS_EVENT | typeof NOTIFICATION_TICK | string;
+export type JobType =
+  | typeof AI_PROCESS_EVENT
+  | typeof NOTIFICATION_TICK
+  | typeof FEEDBACK_RECONCILE_TICK
+  | string;
 
 const databaseUrl = process.env.DATABASE_URL;
 
@@ -18,7 +23,7 @@ export const boss = new PgBoss(databaseUrl);
 
 // Queues that must exist before any work/send/schedule. pg-boss v10 no longer
 // auto-creates queues, so we register them explicitly (createQueue is idempotent).
-export const QUEUES: string[] = [AI_PROCESS_EVENT, NOTIFICATION_TICK];
+export const QUEUES: string[] = [AI_PROCESS_EVENT, NOTIFICATION_TICK, FEEDBACK_RECONCILE_TICK];
 
 export async function ensureQueues(names: string[] = QUEUES): Promise<void> {
   for (const name of names) {
