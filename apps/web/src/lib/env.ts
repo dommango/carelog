@@ -15,12 +15,22 @@ const schema = z.object({
   // Nodemailer provider stays registered when configured.
   EMAIL_SERVER: z.string().default(''),
   EMAIL_FROM: z.string().default(''),
+  // Feedback → central Notion DB mirror. Both unset = the sync no-ops and
+  // feedback lives in Postgres only; nothing in the submit path depends on them.
+  NOTION_API_KEY: z.string().default(''),
+  NOTION_FEEDBACK_DB_ID: z.string().default(''),
+  // Public origin the Notion-facing screenshot URLs are built from. Notion's
+  // servers fetch these, so it must be the externally reachable origin.
+  APP_BASE_URL: z.string().default(''),
+  // Shared secret guarding the reconciler cron route.
+  CRON_SECRET: z.string().default(''),
 });
 
 export const env = schema.parse(process.env);
 
 export const googleEnabled = Boolean(env.AUTH_GOOGLE_ID && env.AUTH_GOOGLE_SECRET);
 export const emailEnabled = Boolean(env.EMAIL_SERVER && env.EMAIL_FROM);
+export const notionEnabled = Boolean(env.NOTION_API_KEY && env.NOTION_FEEDBACK_DB_ID);
 
 const hasAuthSecret = Boolean(process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET);
 if (!hasAuthSecret && env.NODE_ENV === 'production') {

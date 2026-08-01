@@ -1,6 +1,14 @@
-import { boss, AI_PROCESS_EVENT, NOTIFICATION_TICK, start, stop } from '@carelog/queue';
+import {
+  boss,
+  AI_PROCESS_EVENT,
+  NOTIFICATION_TICK,
+  FEEDBACK_RECONCILE_TICK,
+  start,
+  stop,
+} from '@carelog/queue';
 import { processEvent } from './pipeline/processEvent.js';
 import { runNotificationTick } from './cron/notifications.js';
+import { runFeedbackReconcileTick } from './cron/feedbackReconcile.js';
 
 async function main() {
   await start();
@@ -18,9 +26,16 @@ async function main() {
     await runNotificationTick(now ? new Date(now) : new Date());
   });
 
-  await boss.schedule(NOTIFICATION_TICK, '* * * * *', { now: new Date().toISOString() });
+  await boss.work(FEEDBACK_RECONCILE_TICK, async () => {
+    await runFeedbackReconcileTick();
+  });
 
-  console.log(`[worker] Subscribed to ${AI_PROCESS_EVENT} and ${NOTIFICATION_TICK}`);
+  await boss.schedule(NOTIFICATION_TICK, '* * * * *', { now: new Date().toISOString() });
+  await boss.schedule(FEEDBACK_RECONCILE_TICK, '*/30 * * * *', {});
+
+  console.log(
+    `[worker] Subscribed to ${AI_PROCESS_EVENT}, ${NOTIFICATION_TICK} and ${FEEDBACK_RECONCILE_TICK}`,
+  );
 }
 
 async function shutdown(signal: string) {
