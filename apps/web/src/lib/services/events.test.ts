@@ -4,7 +4,13 @@ config({ path: '.env.local' });
 import { describe, it, expect, beforeEach } from 'vitest';
 import { randomUUID } from 'crypto';
 import { prisma } from '@/lib/prisma';
-import { createEvent, listEvents, updateEvent, confirmEvent } from '@/lib/services/events';
+import {
+  createEvent,
+  listEvents,
+  updateEvent,
+  confirmEvent,
+  hasAnyEvent,
+} from '@/lib/services/events';
 import { Actor } from '@/lib/policy';
 import { EventCategory, EventStatus, Role } from '@carelog/db';
 import { ForbiddenError } from '@/lib/errors';
@@ -215,5 +221,36 @@ describe('events service', () => {
       where: { entityType: 'event', entityId: event.id, action: 'event.confirm' },
     });
     expect(audits).toHaveLength(1);
+  });
+
+  describe('hasAnyEvent', () => {
+    it('is false for a care circle with nothing logged', async () => {
+      const { adminActor } = await seed();
+      expect(await hasAnyEvent(adminActor)).toBe(false);
+    });
+
+    it('is true once an event exists', async () => {
+      const { adminActor, caregiverActor } = await seed();
+      await createEvent(caregiverActor, eventInput());
+      expect(await hasAnyEvent(adminActor)).toBe(true);
+    });
+
+    it('ignores soft-deleted events', async () => {
+      const { adminActor, caregiverActor } = await seed();
+      const { event } = await createEvent(caregiverActor, eventInput());
+      await prisma.careEvent.update({
+        where: { id: event.id },
+        data: { deletedAt: new Date() },
+      });
+      expect(await hasAnyEvent(adminActor)).toBe(false);
+    });
+
+    it('refuses an actor asking about someone else\'s patient', async () => {
+      const { adminActor } = await seed();
+      const otherPatient = await prisma.patient.create({ data: { name: 'Someone else' } });
+      await expect(
+        hasAnyEvent(adminActor, { patientId: otherPatient.id })
+      ).rejects.toBeInstanceOf(ForbiddenError);
+    });
   });
 });

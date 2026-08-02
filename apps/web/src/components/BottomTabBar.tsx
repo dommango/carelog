@@ -4,18 +4,25 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Icon, type IconName } from '@/components/Icon';
 
-const TABS: Array<{ href: string; label: string; icon: IconName }> = [
+type Tab = { href: string; label: string; icon: IconName };
+
+const TABS: Tab[] = [
   { href: '/', label: 'Timeline', icon: 'home' },
   { href: '/events/new', label: 'Log', icon: 'plus' },
   { href: '/reports', label: 'Reports', icon: 'chart' },
 ];
 
-export function BottomTabBar() {
+// /admin already refuses non-admins server-side; hiding the tab is about not
+// advertising a dead end, not about authorization.
+const ADMIN_TAB: Tab = { href: '/admin', label: 'Admin', icon: 'gear' };
+
+export function BottomTabBar({ isAdmin = false }: { isAdmin?: boolean }) {
   const pathname = usePathname();
+  const tabs = isAdmin ? [...TABS, ADMIN_TAB] : TABS;
 
   return (
     <nav className="sticky bottom-0 z-10 flex border-t border-line bg-card">
-      {TABS.map((tab) => {
+      {tabs.map((tab) => {
         const active = tab.href === '/' ? pathname === '/' : pathname.startsWith(tab.href);
         return (
           <Link

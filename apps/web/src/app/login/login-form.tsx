@@ -59,15 +59,21 @@ export default function LoginForm({ googleEnabled }: { googleEnabled: boolean })
           onSubmit={async (e) => {
             e.preventDefault();
             const formData = new FormData(e.currentTarget);
-            const result = await signIn('credentials', {
-              email: formData.get('email') as string,
-              name: formData.get('name') as string,
-              redirect: false,
+            // Not signIn('credentials') — credentials sign-in requires the JWT
+            // session strategy, and this app uses database sessions. This route
+            // writes the Session row directly.
+            const res = await fetch('/api/auth/test-login', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                email: formData.get('email') as string,
+                name: formData.get('name') as string,
+              }),
             });
-            if (result?.ok) {
+            if (res.ok) {
               window.location.href = '/';
             } else {
-              alert(result?.error ?? 'Sign in failed');
+              alert(`Sign in failed: ${await res.text()}`);
             }
           }}
           className="mt-8 space-y-3 border-t border-line pt-6"
@@ -83,7 +89,7 @@ export default function LoginForm({ googleEnabled }: { googleEnabled: boolean })
 
       <p className="mt-6 text-center text-[12.5px] font-bold text-ink-faint">
         {googleEnabled
-          ? 'New to the care circle? Ask a family member to invite you.'
+          ? 'New here? Sign in to set up a care circle, or to join one you were invited to.'
           : 'Google sign-in is not configured for this environment.'}
       </p>
     </div>

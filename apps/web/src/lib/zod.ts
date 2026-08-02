@@ -33,6 +33,20 @@ export const createTemplateSchema = z.object({
   defaults: z.record(z.string(), z.unknown()),
 });
 
+const EARLIEST_DOB = Date.parse('1900-01-01');
+
+export const createPatientSchema = z.object({
+  name: z.string().trim().min(1, 'Required').max(120),
+  dateOfBirth: z.iso
+    .date()
+    .refine((value) => {
+      const parsed = Date.parse(value);
+      return parsed >= EARLIEST_DOB && parsed <= Date.now();
+    }, 'Enter a date of birth in the past')
+    .optional(),
+  medicalNotes: z.string().trim().max(2000).optional(),
+});
+
 export const inviteSchema = z.object({
   email: z.string().email(),
   role: z.nativeEnum(Role),
@@ -69,6 +83,7 @@ export type CreateEventInput = z.infer<typeof createEventSchema>;
 export type AttachmentInput = z.infer<typeof attachmentInputSchema>;
 export type UpdateEventInput = z.infer<typeof updateEventSchema>;
 export type CreateTemplateInput = z.infer<typeof createTemplateSchema>;
+export type CreatePatientInput = z.infer<typeof createPatientSchema>;
 export type InviteInput = z.infer<typeof inviteSchema>;
 export type CreateScheduleInput = z.input<typeof createScheduleSchema>;
 export type UpdateScheduleInput = z.infer<typeof updateScheduleSchema>;

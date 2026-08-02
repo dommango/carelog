@@ -131,6 +131,29 @@ export async function listEvents(
   });
 }
 
+/**
+ * Whether anything has ever been logged for this patient. Deliberately not
+ * listEvents(..., { limit: 1 }): that pulls rawInput plus two joins across the
+ * wire to answer a yes/no, and rawInput is PHI. `select: { id: true }` keeps
+ * the answer to a single indexed column.
+ */
+export async function hasAnyEvent(
+  actor: Actor,
+  opts: { patientId?: string } = {}
+): Promise<boolean> {
+  const patientId = opts.patientId ?? actor.assignment.patientId;
+  if (!can(actor, 'event:read', { type: 'event', patientId })) {
+    throw new ForbiddenError();
+  }
+
+  const found = await prisma.careEvent.findFirst({
+    where: { patientId, deletedAt: null },
+    select: { id: true },
+  });
+
+  return found !== null;
+}
+
 export async function listEventsNeedingReview(
   actor: Actor,
   opts: { patientId?: string; limit?: number } = {}
