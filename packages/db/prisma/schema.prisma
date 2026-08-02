@@ -56,6 +56,14 @@ enum NotifDelivery {
   failed
 }
 
+// Central Notion `Type` map: bug→Bug, request→Request, feedback→Feedback
+// (see apps/web/src/lib/notion/notion-payload.ts).
+enum FeedbackType {
+  bug
+  feedback
+  request
+}
+
 model Account {
   id                String  @id @default(cuid())
   userId            String  @map("user_id")
@@ -110,6 +118,7 @@ model User {
   assignments       CaregiverAssignment[]
   events            CareEvent[]          @relation("author")
   pushSubscriptions PushSubscription[]
+  feedback          Feedback[]
 
   @@map("users")
 }
@@ -271,6 +280,36 @@ model PushSubscription {
 
   @@index([userId])
   @@map("push_subscriptions")
+}
+
+model Feedback {
+  id          String       @id @default(uuid())
+  userId      String?      @map("user_id")
+  type        FeedbackType @default(bug)
+  title       String
+  description String?
+  pageUrl     String?      @map("page_url")
+  userAgent   String?      @map("user_agent")
+  userEmail   String?      @map("user_email")
+  // Base64 data-URL screenshots (region snips). Kept in-row; the Notion mirror
+  // forwards public URLs to the screenshot endpoint, not the image bytes.
+  screenshots Json?
+  // Back-link to the synced Notion card, when the integration is configured.
+  notionUrl   String?      @map("notion_url")
+  // Outbox columns for the central-DB sync. notionSyncedAt is NULL until a page
+  // exists in Notion (the outbox flag the reconciler scans); notionPageId is the
+  // created page id (idempotency back-link); attempts/lastError bound retries so a
+  // persistently-failing row surfaces in logs rather than being silently lost.
+  notionPageId       String?   @map("notion_page_id")
+  notionSyncedAt     DateTime? @map("notion_synced_at")
+  notionSyncAttempts Int       @default(0) @map("notion_sync_attempts")
+  notionLastError    String?   @map("notion_last_error")
+  createdAt          DateTime  @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@map("feedback")
 }
 
 model AuditLog {
