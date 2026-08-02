@@ -8,9 +8,12 @@ import { listTemplateUsage } from '@/lib/services/reports';
 import { inviteUser, listAssignments } from '@/lib/services/invites';
 import { listSchedules, createSchedule, deleteSchedule } from '@/lib/services/schedules';
 import { createScheduleSchema, createTemplateSchema, inviteSchema } from '@/lib/zod';
-import { EventCategory } from '@carelog/db';
-
-const categories = Object.values(EventCategory);
+import { describeRrule } from '@/lib/rrule-describe';
+import { categoryMeta } from '@/lib/categoryTheme';
+import { Icon } from '@/components/Icon';
+import { InviteForm } from '@/components/admin/InviteForm';
+import { TemplateForm } from '@/components/admin/TemplateForm';
+import { ScheduleForm } from '@/components/admin/ScheduleForm';
 
 export default async function AdminPage() {
   const session = await auth();
@@ -56,10 +59,8 @@ export default async function AdminPage() {
       .filter((n) => !isNaN(n));
     const templateId = (formData.get('templateId') as string) || undefined;
     const escalationAfter = parseInt(formData.get('escalationAfter') as string, 10);
-    const escalationNotify = (formData.get('escalationNotify') as string)
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean);
+    // Checkboxes over the real care team, so these are already user IDs.
+    const escalationNotify = (formData.getAll('escalationNotify') as string[]).filter(Boolean);
 
     const [hour, minute] = time.split(':').map((s) => parseInt(s, 10));
 
@@ -121,200 +122,155 @@ export default async function AdminPage() {
     revalidatePath('/admin');
   }
 
+  const templateOptions = templates.map((t) => ({
+    id: t.id,
+    label: `${t.name} · ${categoryMeta(t.category).label}`,
+  }));
+
+  const caregiverOptions = caregivers.map((assignment) => ({
+    id: assignment.userId,
+    label: assignment.user.name ?? assignment.user.email ?? 'Caregiver',
+  }));
+
   return (
     <div className="mx-auto max-w-2xl space-y-4">
       <h1 className="cc-serif text-[22px]">Admin</h1>
 
-      <section id="invite-caregiver" className="cc-card scroll-mt-4">
-        <h2 className="cc-eyebrow mb-3">Invite caregiver</h2>
-        <form action={inviteAction} className="space-y-3">
-          <input
-            name="email"
-            type="email"
-            placeholder="Email"
-            required
-            className="cc-input"
-          />
-          <select name="role" required className="cc-input">
-            <option value="caregiver">Caregiver</option>
-            <option value="viewer">Viewer</option>
-            <option value="admin">Admin</option>
-          </select>
-          <input type="hidden" name="patientId" value={patient.id} />
-          <button
-            type="submit"
-            className="cc-btn cc-btn--primary"
-          >
-            Invite
-          </button>
-        </form>
+      <section className="cc-card">
+        <h2 className="cc-eyebrow mb-3">How this fits together</h2>
+        <ol className="space-y-2.5">
+          <li className="flex gap-3">
+            <span className="shrink-0 pt-0.5" style={{ color: 'var(--accent)' }}>
+              <Icon name="pill" size={18} />
+            </span>
+            <span className="text-[14px] text-ink-soft">
+              <strong className="text-ink">Templates</strong> are shortcuts for the things you log
+              over and over. Make one for “Morning nebulizer” and logging it becomes a single tap
+              instead of a sentence.
+            </span>
+          </li>
+          <li className="flex gap-3">
+            <span className="shrink-0 pt-0.5" style={{ color: 'var(--accent)' }}>
+              <Icon name="clock" size={18} />
+            </span>
+            <span className="text-[14px] text-ink-soft">
+              <strong className="text-ink">Schedules</strong> say when that should happen. They are
+              what produces reminders, what marks something missed, and what the adherence numbers
+              in Reports are measured against.
+            </span>
+          </li>
+          <li className="flex gap-3">
+            <span className="shrink-0 pt-0.5" style={{ color: 'var(--accent)' }}>
+              <Icon name="users" size={18} />
+            </span>
+            <span className="text-[14px] text-ink-soft">
+              <strong className="text-ink">Caregivers</strong> are everyone who shares the log. A
+              schedule can text one of them if a dose goes unlogged.
+            </span>
+          </li>
+        </ol>
+        <p className="mt-3 text-[13px] font-semibold text-ink-faint">
+          You do not need all three. A template on its own is useful; add a schedule when you want
+          to be reminded.
+        </p>
       </section>
 
-      <section id="caregivers" className="cc-card scroll-mt-4">
-        <h2 className="cc-eyebrow mb-3">Caregivers</h2>
-        <ul className="divide-y divide-line">
-          {caregivers.map((assignment) => (
-            <li
-              key={assignment.id}
-              className="py-2 flex items-center justify-between"
-            >
-              <span>{assignment.user.name ?? assignment.user.email}</span>
-              <span className="text-sm text-ink-faint">{assignment.role}</span>
-            </li>
-          ))}
-        </ul>
+      <section id="templates" className="cc-card scroll-mt-4">
+        <h2 className="cc-eyebrow mb-1">Templates</h2>
+        <p className="mb-3 text-[13px] font-semibold text-ink-soft">
+          One-tap shortcuts for the care you log most.
+        </p>
+
+        {templates.length === 0 ? (
+          <p className="text-[14px] text-ink-soft">No templates yet.</p>
+        ) : (
+          <ul className="divide-y divide-line">
+            {templates.map((template) => (
+              <li key={template.id} className="flex items-center justify-between gap-3 py-2">
+                <div className="min-w-0">
+                  <span className="text-[14px] font-bold text-ink">{template.name}</span>
+                  <span className="ml-2 text-sm text-ink-faint">
+                    {categoryMeta(template.category).label}
+                  </span>
+                </div>
+                <span className="shrink-0 text-sm text-ink-faint">
+                  {template.usageCount === 1 ? '1 use' : `${template.usageCount} uses`}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <section id="new-template" className="cc-card scroll-mt-4">
         <h2 className="cc-eyebrow mb-3">New template</h2>
-        <form action={templateAction} className="space-y-3">
-          <input
-            name="name"
-            placeholder="Template name"
-            required
-            className="cc-input"
-          />
-          <select name="category" required className="cc-input">
-            {categories.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
+        <TemplateForm action={templateAction} />
+      </section>
+
+      <section id="schedules" className="cc-card scroll-mt-4">
+        <h2 className="cc-eyebrow mb-1">Schedules</h2>
+        <p className="mb-3 text-[13px] font-semibold text-ink-soft">
+          When care is expected — the source of reminders and adherence.
+        </p>
+
+        {schedules.length === 0 ? (
+          <p className="text-[14px] text-ink-soft">
+            No schedules yet, so nothing is being reminded or tracked for adherence.
+          </p>
+        ) : (
+          <ul className="divide-y divide-line">
+            {schedules.map((schedule) => (
+              <li key={schedule.id} className="flex items-center justify-between gap-3 py-2">
+                <div className="min-w-0">
+                  <span className="block text-[14px] font-bold text-ink">{schedule.name}</span>
+                  <span className="block text-sm text-ink-faint">
+                    {describeRrule(schedule.rrule)}
+                  </span>
+                </div>
+                <form action={scheduleDeleteAction} className="shrink-0">
+                  <input type="hidden" name="id" value={schedule.id} />
+                  <button
+                    type="submit"
+                    className="text-sm font-bold text-accent-deep hover:underline"
+                  >
+                    Pause
+                  </button>
+                </form>
+              </li>
             ))}
-          </select>
-          <textarea
-            name="defaults"
-            placeholder='JSON defaults, e.g. {"medication":"Albuterol"}'
-            rows={3}
-            className="cc-input"
-          />
-          <button
-            type="submit"
-            className="cc-btn cc-btn--primary"
-          >
-            Create template
-          </button>
-        </form>
+          </ul>
+        )}
       </section>
 
       <section id="new-schedule" className="cc-card scroll-mt-4">
         <h2 className="cc-eyebrow mb-3">New schedule</h2>
-        <form action={scheduleAction} className="space-y-3">
-          <input
-            name="name"
-            placeholder="Schedule name, e.g. Morning nebulizer"
-            required
-            className="cc-input"
-          />
-          <select name="recurrence" required className="cc-input">
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-            <option value="hourly">Every N hours</option>
-          </select>
-          <input
-            name="time"
-            type="time"
-            defaultValue="08:00"
-            className="cc-input"
-          />
-          <div className="flex flex-wrap gap-2">
-            {['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'].map((d) => (
-              <label key={d} className="text-sm font-semibold text-ink-soft">
-                <input type="checkbox" name="days" value={d} /> {d}
-              </label>
-            ))}
-          </div>
-          <input
-            name="interval"
-            type="number"
-            min={1}
-            placeholder="Interval (hours, for hourly only)"
-            className="cc-input"
-          />
-          <input
-            name="windowMinutes"
-            type="number"
-            min={1}
-            defaultValue={90}
-            placeholder="Window minutes"
-            className="cc-input"
-          />
-          <input
-            name="remindOffsets"
-            placeholder="Reminder offsets in minutes, e.g. 0,15"
-            defaultValue="0"
-            className="cc-input"
-          />
-          <select name="templateId" className="cc-input">
-            <option value="">No linked template</option>
-            {templates.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name} ({t.category})
-              </option>
-            ))}
-          </select>
-          <input
-            name="escalationAfter"
-            type="number"
-            min={0}
-            placeholder="Escalate after N minutes"
-            className="cc-input"
-          />
-          <input
-            name="escalationNotify"
-            placeholder="Escalation user IDs, comma separated"
-            className="cc-input"
-          />
-          <button
-            type="submit"
-            className="cc-btn cc-btn--primary"
-          >
-            Create schedule
-          </button>
-        </form>
+        <ScheduleForm
+          action={scheduleAction}
+          templates={templateOptions}
+          caregivers={caregiverOptions}
+        />
       </section>
 
-      <section id="templates" className="cc-card scroll-mt-4">
-        <h2 className="cc-eyebrow mb-3">Templates</h2>
+      <section id="caregivers" className="cc-card scroll-mt-4">
+        <h2 className="cc-eyebrow mb-1">Caregivers</h2>
+        <p className="mb-3 text-[13px] font-semibold text-ink-soft">
+          Everyone who shares this log.
+        </p>
         <ul className="divide-y divide-line">
-          {templates.map((template) => (
-            <li
-              key={template.id}
-              className="py-2 flex items-center justify-between"
-            >
-              <div>
-                <span>{template.name}</span>
-                <span className="ml-2 text-sm text-ink-faint">{template.category}</span>
-              </div>
-              <span className="text-sm text-ink-faint">{template.usageCount} uses</span>
+          {caregivers.map((assignment) => (
+            <li key={assignment.id} className="flex items-center justify-between gap-3 py-2">
+              <span className="min-w-0 truncate text-[14px] text-ink">
+                {assignment.user.name ?? assignment.user.email}
+              </span>
+              <span className="shrink-0 text-sm text-ink-faint">{assignment.role}</span>
             </li>
           ))}
         </ul>
       </section>
 
-      <section id="schedules" className="cc-card scroll-mt-4">
-        <h2 className="cc-eyebrow mb-3">Schedules</h2>
-        <ul className="divide-y divide-line">
-          {schedules.map((schedule) => (
-            <li
-              key={schedule.id}
-              className="py-2 flex items-center justify-between"
-            >
-              <div>
-                <span>{schedule.name}</span>
-                <span className="ml-2 text-sm text-ink-faint">{schedule.rrule}</span>
-              </div>
-              <form action={scheduleDeleteAction}>
-                <input type="hidden" name="id" value={schedule.id} />
-                <button
-                  type="submit"
-                  className="text-sm font-bold text-accent-deep hover:underline"
-                >
-                  Pause
-                </button>
-              </form>
-            </li>
-          ))}
-        </ul>
+      <section id="invite-caregiver" className="cc-card scroll-mt-4">
+        <h2 className="cc-eyebrow mb-3">Invite caregiver</h2>
+        <InviteForm action={inviteAction} patientId={patient.id} />
       </section>
     </div>
   );
