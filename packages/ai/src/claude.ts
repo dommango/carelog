@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { NormalizationOutput, normalizationOutputSchema } from './schemas.js';
+import { capNormalizationOutput } from './limits.js';
 
 const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY ?? '',
@@ -118,5 +119,7 @@ export async function normalizeEvent(input: {
     throw err;
   }
 
-  return parsed.data;
+  // Capped here rather than at the call site so every consumer of a
+  // normalization result gets the same limits, prompt compliance or not.
+  return capNormalizationOutput(parsed.data);
 }
