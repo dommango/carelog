@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git fetch *)",
+      "Bash(pnpm exec vitest run *)",
+      "Bash(uv run pytest *)",
+      "Bash(npm run typecheck)",
+      "Bash(pnpm typecheck *)",
+      "Bash(pnpm test *)",
+      "Bash(gh run watch *)",
+      "Bash(railway variables --kv)",
+      "Bash(pnpm --filter web exec tsc --noEmit *)",
+      "mcp__claude_ai_Notion__notion-fetch",
+      "mcp__claude_ai_Notion__notion-query-data-sources"
+    ]
+  }
+}
