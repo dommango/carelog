@@ -36,6 +36,14 @@ export async function POST(
       return new Response('Forbidden', { status: 403 });
     }
 
+    // MERGE NOTE — delete this call when the security-hardening branch (#16)
+    // lands. There, PUT /api/upload/[id] stamps uploadedAt itself, as part of
+    // the same update that stores the object, and `markAttachmentUploaded` is
+    // removed entirely. Marking it here as well would let any caller in the
+    // circle assert an upload that never happened, which combined with that
+    // branch's write-once guard permanently blocks the real upload. It is kept
+    // for now only because this branch does not carry that route change, and
+    // the count below needs uploadedAt set by something.
     await markAttachmentUploaded(id);
 
     // Only once every attachment on the event has landed. This used to fire per

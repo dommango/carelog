@@ -75,7 +75,7 @@ export async function processEvent(eventId: string): Promise<void> {
   // Analyze photo attachments.
   for (const attachment of event.attachments) {
     if (attachment.kind === 'photo' && !attachment.visionSummary) {
-      await analyzeImage(attachment.id, attachment.storageKey);
+      await analyzeImage(attachment.id, attachment.storageKey, attachment.mimeType);
     }
   }
 
