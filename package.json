@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "pnpm --filter web dev",
     "build": "pnpm --filter web build",
-    "test": "pnpm --filter web --filter @carelog/storage test",
+    "test": "pnpm --filter web test && pnpm --filter @carelog/ai test && pnpm --filter worker test && pnpm --filter @carelog/storage test",
     "worker:dev": "pnpm --filter worker dev",
     "worker:start": "pnpm --filter worker start",
     "worker:build": "pnpm --filter worker build",

@@ -199,13 +199,49 @@ export default function NewEventPage() {
   };
 
   return (
-    <form onSubmit={submit} className="mx-auto flex max-w-xl flex-col gap-4">
+    <form onSubmit={submit} className="mx-auto flex max-w-xl flex-col gap-4 md:max-w-2xl">
       <div className="-mx-4 -mt-[18px] mb-1 flex items-center gap-2 border-b border-line bg-card px-4 py-3.5">
         <button type="button" onClick={() => router.back()} className="cc-btn cc-btn--ghost cc-btn--sm !pl-1.5">
           <Icon name="chevL" size={16} />
           Back
         </button>
         <h1 className="cc-serif text-[22px]">{templateName ? templateName : 'New log'}</h1>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
+        <div>
+          <label className="cc-field-label">
+            Category <span className="font-semibold text-ink-faint">· optional, auto-detected</span>
+          </label>
+          <div className="flex flex-wrap gap-[7px]">
+            {categories.map((c) => {
+              const meta = categoryMeta(c);
+              const active = category === c;
+              return (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setCategory(active ? '' : c)}
+                  className={`cc-btn cc-btn--sm ${active ? 'cc-btn--primary' : 'cc-btn--secondary'}`}
+                >
+                  <Icon name={meta.icon} size={14} />
+                  {meta.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="md:w-60">
+          <label className="cc-field-label">When</label>
+          <input
+            type="datetime-local"
+            value={occurredAt}
+            onChange={(e) => setOccurredAt(e.target.value)}
+            required
+            className="cc-input"
+          />
+        </div>
       </div>
 
       <div>
@@ -215,7 +251,7 @@ export default function NewEventPage() {
           onChange={(e) => setRawInput(e.target.value)}
           required
           rows={4}
-          className="cc-input resize-none"
+          className="cc-input resize-none md:min-h-[9.5rem]"
           placeholder="Say it however you'd tell a nurse — we'll sort out the details."
         />
         <div className="cc-note cc-note--calm mt-2.5">
@@ -229,44 +265,10 @@ export default function NewEventPage() {
         </div>
       </div>
 
-      <div>
-        <label className="cc-field-label">
-          Category <span className="font-semibold text-ink-faint">· optional, auto-detected</span>
-        </label>
-        <div className="flex flex-wrap gap-[7px]">
-          {categories.map((c) => {
-            const meta = categoryMeta(c);
-            const active = category === c;
-            return (
-              <button
-                key={c}
-                type="button"
-                onClick={() => setCategory(active ? '' : c)}
-                className={`cc-btn cc-btn--sm ${active ? 'cc-btn--primary' : 'cc-btn--secondary'}`}
-              >
-                <Icon name={meta.icon} size={14} />
-                {meta.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      <div>
-        <label className="cc-field-label">When</label>
-        <input
-          type="datetime-local"
-          value={occurredAt}
-          onChange={(e) => setOccurredAt(e.target.value)}
-          required
-          className="cc-input"
-        />
-      </div>
-
       <div className="space-y-2.5">
         <label className="cc-field-label">Attachments</label>
-        <div className="flex gap-2.5">
-          <label className="cc-btn cc-btn--secondary flex-1 cursor-pointer">
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+          <label className="cc-btn cc-btn--secondary w-full cursor-pointer">
             <input
               type="file"
               accept="image/*"
@@ -277,7 +279,7 @@ export default function NewEventPage() {
             <Icon name="phone" size={17} />
             Photo
           </label>
-          <label className="cc-btn cc-btn--secondary flex-1 cursor-pointer">
+          <label className="cc-btn cc-btn--secondary w-full cursor-pointer">
             <input
               type="file"
               accept="image/*"
@@ -291,7 +293,7 @@ export default function NewEventPage() {
           <button
             type="button"
             onClick={recording ? stopRecording : startRecording}
-            className="cc-btn flex-1"
+            className="cc-btn col-span-2 w-full sm:col-span-1"
             style={
               recording
                 ? { background: 'var(--accent-tint)', color: 'var(--accent-deep)', boxShadow: 'none' }

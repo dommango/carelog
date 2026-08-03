@@ -59,19 +59,19 @@ export default async function RootLayout({
           {user ? (
             <div className="flex min-h-full flex-col">
               <header className="flex items-center justify-between border-b border-line bg-card px-4 py-3">
-                <div className="flex items-center gap-2.5">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-caregiver text-white">
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-caregiver text-white">
                     <Icon name="cal" size={17} />
                   </span>
-                  <div className="leading-tight">
-                    <div className="cc-serif text-[18px]">{patientName ?? 'CareLog'}</div>
-                    <div className="text-xs font-bold text-ink-faint">
+                  <div className="min-w-0 leading-tight">
+                    <div className="cc-serif truncate text-[18px]">{patientName ?? 'CareLog'}</div>
+                    <div className="truncate text-xs font-bold text-ink-faint">
                       Care<span className="text-caregiver-ink">Log</span>
                       {user.name ? ` · ${user.name}` : ''}
                     </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex shrink-0 items-center gap-2 sm:gap-3">
                   <OfflineIndicator />
                   <form
                     action={async () => {
@@ -79,7 +79,7 @@ export default async function RootLayout({
                       await signOut({ redirectTo: '/login' });
                     }}
                   >
-                    <button type="submit" className="cc-btn cc-btn--ghost cc-btn--sm">
+                    <button type="submit" className="cc-btn cc-btn--ghost cc-btn--sm whitespace-nowrap">
                       Sign out
                     </button>
                   </form>

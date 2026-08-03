@@ -1,6 +1,6 @@
 import { prisma } from '@carelog/db';
 import { getStorageForWorker } from './storage.js';
-import { completeText } from '@carelog/ai';
+import { capVisionSummary, completeText } from '@carelog/ai';
 
 export async function analyzeImage(
   attachmentId: string,
@@ -20,7 +20,10 @@ export async function analyzeImage(
 
     const summary = await completeText({
       system:
-        'You are a helpful vision assistant for a caregiver app. Describe the image briefly and note any readable text (medication labels, notes, food packaging). Return a short plain-text summary.',
+        'You are a vision assistant for a caregiver app. Describe only what is visibly in the photo and any readable text (medication labels, notes, food packaging). ' +
+        'Do not diagnose, assess how the person is doing, comment on their condition, or suggest care. ' +
+        'Do not guess at anything you cannot clearly see. ' +
+        'Answer in one or two short sentences, under 200 characters, as plain text.',
       messages: [
         {
           role: 'user',
@@ -42,11 +45,15 @@ export async function analyzeImage(
       ],
     });
 
+    // The prompt asks for brevity; this enforces it. The description renders
+    // inline under the caregiver's own words on the timeline.
+    const capped = capVisionSummary(summary);
+
     await prisma.attachment.update({
       where: { id: attachmentId },
-      data: { visionSummary: summary },
+      data: { visionSummary: capped },
     });
-    return summary;
+    return capped;
   } catch (error) {
     console.error(`[worker] Image analysis failed for ${attachmentId}:`, error);
     return null;
