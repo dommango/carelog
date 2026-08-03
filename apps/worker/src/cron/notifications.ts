@@ -1,10 +1,33 @@
-import { prisma, NotifChannel, NotifDelivery, ScheduleStatus } from '@carelog/db';
+import { prisma, NotifChannel, NotifDelivery, NotifKind, ScheduleStatus, Prisma } from '@carelog/db';
 import {
   expandSchedule,
   sendPush,
   sendSms,
   PushSubscription,
 } from '@carelog/queue';
+import { parseEscalation } from './escalation.js';
+
+/**
+ * Create a notification unless an identical one already exists.
+ *
+ * The dedupe used to be a findFirst followed by a create, which two overlapping
+ * ticks — a pg-boss retry, or a second worker — could both pass before either
+ * wrote, double-notifying. The unique index on
+ * (scheduleId, userId, dueAt, channel, kind) decides it now; P2002 means
+ * somebody else got there first, which is success, not failure.
+ */
+async function createNotificationOnce(
+  data: Prisma.NotificationUncheckedCreateInput
+): Promise<{ id: string } | null> {
+  try {
+    return await prisma.notification.create({ data, select: { id: true } });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      return null;
+    }
+    throw error;
+  }
+}
 
 const HORIZON_MINUTES = 4 * 60; // evaluate 4 hours ahead
 const LOOKBACK_MINUTES = 2 * 60;
@@ -51,31 +74,21 @@ export async function runNotificationTick(now: Date = new Date()): Promise<{
         if (acknowledged) continue;
 
         for (const user of caregivers) {
-          const existing = await prisma.notification.findFirst({
-            where: {
-              scheduleId: schedule.id,
-              userId: user.id,
-              dueAt: occurrence.dueAt,
-              channel: NotifChannel.push,
-            },
-          });
-          if (existing) continue;
-
           const title = `${schedule.name} due`;
           const body = `It's time for ${schedule.name.toLowerCase()}.`;
 
-          const notification = await prisma.notification.create({
-            data: {
-              scheduleId: schedule.id,
-              userId: user.id,
-              channel: NotifChannel.push,
-              dueAt: occurrence.dueAt,
-              title,
-              body,
-              deliveryStatus: NotifDelivery.logged_only,
-              sentAt: now,
-            },
+          const notification = await createNotificationOnce({
+            scheduleId: schedule.id,
+            userId: user.id,
+            channel: NotifChannel.push,
+            kind: NotifKind.reminder,
+            dueAt: occurrence.dueAt,
+            title,
+            body,
+            deliveryStatus: NotifDelivery.logged_only,
+            sentAt: now,
           });
+          if (!notification) continue;
           notificationsCreated++;
 
           for (const sub of user.pushSubscriptions) {
@@ -101,38 +114,41 @@ export async function runNotificationTick(now: Date = new Date()): Promise<{
             // logged_only stays as created.
           }
 
-          // Fallback SMS if user has a phone number.
+          // Fallback SMS if user has a phone number. Claimed before sending, so
+          // a concurrent tick cannot also send it — an SMS is not retractable.
           if (user.phone) {
-            const smsResult = await sendSms(user.phone, body);
-            await prisma.notification.create({
-              data: {
-                scheduleId: schedule.id,
-                userId: user.id,
-                channel: NotifChannel.sms,
-                dueAt: occurrence.dueAt,
-                title,
-                body,
-                deliveryStatus:
-                  smsResult.status === 'sent'
-                    ? NotifDelivery.sent
-                    : smsResult.status === 'failed'
-                    ? NotifDelivery.failed
-                    : NotifDelivery.logged_only,
-                sentAt: now,
-              },
+            const smsRow = await createNotificationOnce({
+              scheduleId: schedule.id,
+              userId: user.id,
+              channel: NotifChannel.sms,
+              kind: NotifKind.reminder,
+              dueAt: occurrence.dueAt,
+              title,
+              body,
+              deliveryStatus: NotifDelivery.logged_only,
+              sentAt: now,
             });
-            notificationsCreated++;
+
+            if (smsRow) {
+              notificationsCreated++;
+              const smsResult = await sendSms(user.phone, body);
+              if (smsResult.status !== 'logged_only') {
+                await prisma.notification.update({
+                  where: { id: smsRow.id },
+                  data: {
+                    deliveryStatus:
+                      smsResult.status === 'sent' ? NotifDelivery.sent : NotifDelivery.failed,
+                  },
+                });
+              }
+            }
           }
         }
       }
 
       // Escalation
-      if (schedule.escalation) {
-        const escalation = schedule.escalation as {
-          afterMinutes: number;
-          notify: string[];
-          channel?: 'push' | 'sms';
-        };
+      const escalation = parseEscalation(schedule.escalation, schedule.id);
+      if (escalation) {
         const escalateAt = new Date(
           occurrence.dueAt.getTime() + escalation.afterMinutes * 60_000
         );
@@ -144,16 +160,28 @@ export async function runNotificationTick(now: Date = new Date()): Promise<{
           );
           if (acknowledged) continue;
 
+          // Only people still on this patient's care team. `notify` is a bare
+          // list of user ids on the schedule, so a caregiver whose assignment
+          // was revoked — or who was never on this patient at all — would
+          // otherwise keep receiving that patient's escalations, which is a
+          // PHI leak as much as a correctness bug.
+          const eligible = await prisma.caregiverAssignment.findMany({
+            where: {
+              patientId: schedule.patientId,
+              userId: { in: escalation.notify },
+              revokedAt: null,
+            },
+            select: { userId: true },
+          });
+          const eligibleIds = new Set(eligible.map((a) => a.userId));
+
           for (const userId of escalation.notify) {
-            const existingEscalation = await prisma.notification.findFirst({
-              where: {
-                scheduleId: schedule.id,
-                userId,
-                dueAt: occurrence.dueAt,
-                escalatedAt: { not: null },
-              },
-            });
-            if (existingEscalation) continue;
+            if (!eligibleIds.has(userId)) {
+              console.warn(
+                `[worker] Schedule ${schedule.id} escalates to user ${userId}, who has no active assignment to this patient; skipping`
+              );
+              continue;
+            }
 
             const user = await prisma.user.findUnique({
               where: { id: userId },
@@ -165,19 +193,19 @@ export async function runNotificationTick(now: Date = new Date()): Promise<{
             const body = `The ${schedule.name.toLowerCase()} scheduled for ${occurrence.dueAt.toLocaleTimeString()} has not been logged.`;
             const channel = escalation.channel === 'sms' ? NotifChannel.sms : NotifChannel.push;
 
-            await prisma.notification.create({
-              data: {
-                scheduleId: schedule.id,
-                userId: user.id,
-                channel,
-                dueAt: occurrence.dueAt,
-                title,
-                body,
-                deliveryStatus: NotifDelivery.logged_only,
-                sentAt: now,
-                escalatedAt: now,
-              },
+            const escalationRow = await createNotificationOnce({
+              scheduleId: schedule.id,
+              userId: user.id,
+              channel,
+              kind: NotifKind.escalation,
+              dueAt: occurrence.dueAt,
+              title,
+              body,
+              deliveryStatus: NotifDelivery.logged_only,
+              sentAt: now,
+              escalatedAt: now,
             });
+            if (!escalationRow) continue;
             escalationsCreated++;
 
             if (channel === NotifChannel.push) {

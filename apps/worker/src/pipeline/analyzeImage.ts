@@ -6,15 +6,18 @@ export async function analyzeImage(
   attachmentId: string,
   storageKey: string
 ): Promise<string | null> {
-  const storage = getStorageForWorker();
-  const obj = await storage.getObject(storageKey);
-
   if (!process.env.ANTHROPIC_API_KEY) {
     console.warn(`[worker] ANTHROPIC_API_KEY missing; skipping image analysis for ${attachmentId}`);
     return null;
   }
 
+  // Inside the try: the storage read used to sit above it, so a missing or
+  // unreadable file threw straight out of the whole pipeline run rather than
+  // degrading to "no vision summary".
   try {
+    const storage = getStorageForWorker();
+    const obj = await storage.getObject(storageKey);
+
     const base64 = obj.body.toString('base64');
     const mime = obj.contentType ?? 'image/jpeg';
 

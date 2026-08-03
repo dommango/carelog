@@ -37,7 +37,24 @@ export async function POST(
     }
 
     await markAttachmentUploaded(id);
-    await enqueue(AI_PROCESS_EVENT, { eventId: attachment.eventId });
+
+    // Only once every attachment on the event has landed. This used to fire per
+    // attachment, so a two-photo event queued two pipeline runs — the first
+    // reading media the second was still uploading, and both racing on the same
+    // row. The worker needs all the files present to enrich the event once.
+    const pending = await prisma.attachment.count({
+      where: { eventId: attachment.eventId, uploadedAt: null },
+    });
+
+    if (pending === 0) {
+      // singletonKey collapses a duplicate enqueue for the same event into one
+      // queued job, which matters when uploads finish near-simultaneously.
+      await enqueue(
+        AI_PROCESS_EVENT,
+        { eventId: attachment.eventId },
+        { singletonKey: attachment.eventId }
+      );
+    }
 
     return Response.json({ ok: true });
   } catch (error) {

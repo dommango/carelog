@@ -1,8 +1,21 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { NormalizationOutput, normalizationOutputSchema } from './schemas.js';
 
+/**
+ * Single source of truth for the model. It was previously hardcoded here and
+ * again in the worker's pipeline, which stamps `aiModelVersion` on every event
+ * — so changing the model here would have quietly mislabelled every record with
+ * the old name, and the audit trail would say a model that never ran.
+ */
+export const CLAUDE_MODEL = 'claude-haiku-4-5';
+
 const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY ?? '',
+  // Without an explicit ceiling a hung request holds a pg-boss job open until
+  // the job itself expires, blocking that event's enrichment for far longer
+  // than the AI step should ever take.
+  timeout: 60_000,
+  maxRetries: 2,
 });
 
 export type TextBlock = { type: 'text'; text: string };
@@ -70,7 +83,7 @@ export async function completeText({
   }
 
   const response = await client.messages.create({
-    model: 'claude-haiku-4-5',
+    model: CLAUDE_MODEL,
     max_tokens: 2048,
     system,
     messages: messages.map((m) => ({
