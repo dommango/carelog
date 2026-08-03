@@ -8,6 +8,20 @@ import { renderToBuffer } from '@react-pdf/renderer';
 import * as React from 'react';
 import DoctorVisitReport from '@/components/DoctorVisitReport';
 
+// The patient name is user-controlled and lands inside a quoted
+// Content-Disposition filename. CR/LF would let it inject additional response
+// headers, and a bare quote would end the filename early. Strip both, collapse
+// anything else awkward in a filename, and bound the length.
+function safeFilenamePart(name: string): string {
+  const cleaned = name
+    .replace(/[\r\n]/g, '')
+    .replace(/[\\"]/g, '')
+    .replace(/[^\p{L}\p{N} _-]/gu, '-')
+    .trim()
+    .slice(0, 60);
+  return cleaned || 'patient';
+}
+
 export async function GET(request: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) {
@@ -34,6 +48,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const data = await getDoctorVisitExport(actor, parsed.data);
+    const filenameBase = `carelog-report-${safeFilenamePart(data.patient.name)}`;
 
     if (format === 'pdf') {
       const buffer = await renderToBuffer(
@@ -42,7 +57,7 @@ export async function GET(request: NextRequest) {
       return new Response(new Uint8Array(buffer), {
         headers: {
           'Content-Type': 'application/pdf',
-          'Content-Disposition': `attachment; filename="carelog-report-${data.patient.name}.pdf"`,
+          'Content-Disposition': `attachment; filename="${filenameBase}.pdf"`,
         },
       });
     }
@@ -51,7 +66,7 @@ export async function GET(request: NextRequest) {
     return new Response(csv, {
       headers: {
         'Content-Type': 'text/csv',
-        'Content-Disposition': `attachment; filename="carelog-report-${data.patient.name}.csv"`,
+        'Content-Disposition': `attachment; filename="${filenameBase}.csv"`,
       },
     });
   } catch (error) {

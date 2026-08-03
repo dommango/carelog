@@ -4,7 +4,8 @@ import Google from 'next-auth/providers/google';
 import Nodemailer from 'next-auth/providers/nodemailer';
 import { createTransport } from 'nodemailer';
 import { prisma } from '@/lib/prisma';
-import { env, googleEnabled, emailEnabled } from '@/lib/env';
+import { env, googleEnabled, emailEnabled, allowedSignInEmails } from '@/lib/env';
+import { isSignInAllowed } from '@/lib/signin-allowlist';
 
 // There is deliberately no Credentials provider here. Auth.js only supports
 // credentials sign-in under the JWT session strategy, and this app uses
@@ -21,6 +22,13 @@ if (googleEnabled) {
     Google({
       clientId: env.AUTH_GOOGLE_ID,
       clientSecret: env.AUTH_GOOGLE_SECRET,
+      // Not dangerous for the providers actually registered here: Google and
+      // the Nodemailer magic link both prove ownership of the address before
+      // they ever reach this callback, so linking on a matching email cannot be
+      // used to seize someone else's account. Without it, a caregiver who
+      // signed up by magic link and later clicks "Continue with Google" is
+      // rejected with OAuthAccountNotLinked and has no way out. Revisit if a
+      // provider that does not verify email is ever added.
       allowDangerousEmailAccountLinking: true,
     })
   );
@@ -64,6 +72,15 @@ export const {
   },
   providers,
   callbacks: {
+    // Deliberately NOT an invite gate. A brand-new user has no assignment and
+    // no invite — that is exactly the state /onboarding exists to serve — so
+    // rejecting them here would make self-serve signup unreachable. Access to
+    // any patient's data is already gated per-request by getActor()/can().
+    // This is the coarser door: when ALLOWED_SIGNIN_EMAILS is set, only those
+    // addresses may authenticate at all. Unset, sign-in stays open.
+    async signIn({ user }) {
+      return isSignInAllowed(user?.email, allowedSignInEmails);
+    },
     async session({ session, user }) {
       if (session.user && user) {
         (session.user as any).id = user.id;

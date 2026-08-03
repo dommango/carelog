@@ -22,8 +22,8 @@ class MemoryStorage implements storage.Storage {
     this.objects.set(key, { body, contentType });
   }
 
-  async getSignedUrl(key: string) {
-    return { url: `/api/upload?key=${encodeURIComponent(key)}`, method: 'PUT' as const };
+  async getUploadUrl(attachmentId: string) {
+    return { url: `/api/upload/${encodeURIComponent(attachmentId)}`, method: 'PUT' as const };
   }
 }
 
@@ -91,7 +91,10 @@ describe('createEvent with attachments', () => {
 
     expect(uploads).toHaveLength(1);
     expect(uploads[0].attachmentId).toBe(attachmentId);
-    expect(uploads[0].url).toContain('/api/upload?key=');
+    // Addressed by attachment id, never by storage key — the upload endpoint
+    // looks the key up itself so a caller cannot choose where bytes land.
+    expect(uploads[0].url).toBe(`/api/upload/${attachmentId}`);
+    expect(uploads[0].url).not.toContain(attachments[0].storageKey);
     expect(uploads[0].method).toBe('PUT');
   });
 
@@ -116,8 +119,12 @@ describe('createEvent with attachments', () => {
     });
 
     const upload = uploads[0];
-    const url = new URL(upload.url, 'http://localhost');
-    const key = url.searchParams.get('key')!;
+    expect(upload.url).toBe(`/api/upload/${attachmentId}`);
+
+    // The key is server-side state now, so the test reads it the same way the
+    // upload route does: off the attachment row.
+    const row = await prisma.attachment.findUniqueOrThrow({ where: { id: attachmentId } });
+    const key = row.storageKey;
 
     const storageInstance = storage.getStorage();
     await storageInstance.putObject(key, Buffer.from('fake-audio'), 'audio/webm');

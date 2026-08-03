@@ -1,15 +1,22 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { cookies } from 'next/headers';
+import { env } from '@/lib/env';
+import { checkTestLoginAccess } from '@/lib/test-login-gate';
 
-// Test-only login used by Playwright E2E tests, and as the interim auth path
-// for deployments without Google OAuth wired up. Enabled in development, or
-// anywhere ENABLE_TEST_LOGIN is explicitly set (opt-in backdoor — off by default).
+// Development and E2E sign-in only. This mints a session for any email it is
+// handed, so it is credential-equivalent and is refused outright in production
+// — it is NOT a fallback auth path for a real deployment. See
+// checkTestLoginAccess for the full rule.
 export async function POST(request: NextRequest) {
-  const enabled =
-    process.env.NODE_ENV === 'development' || process.env.ENABLE_TEST_LOGIN === 'true';
-  if (!enabled) {
-    return new Response('Forbidden', { status: 403 });
+  const decision = checkTestLoginAccess({
+    nodeEnv: process.env.NODE_ENV,
+    expectedSecret: env.TEST_LOGIN_SECRET,
+    providedSecret: request.headers.get('x-test-login-secret'),
+  });
+
+  if (!decision.allowed) {
+    return new Response(decision.message, { status: decision.status });
   }
 
   const body = await request.json().catch(() => ({})) as { email?: string; name?: string };

@@ -176,7 +176,7 @@ describe('outbox drain', () => {
       payload: {
         eventId,
         attachmentId,
-        url: '/api/upload?key=test',
+        url: '/api/upload/att-1',
         method: 'PUT',
         blobId,
       },
@@ -187,7 +187,7 @@ describe('outbox drain', () => {
     await drainOutbox();
 
     expect(global.fetch).toHaveBeenCalledWith(
-      '/api/upload?key=test',
+      '/api/upload/att-1',
       expect.objectContaining({ method: 'PUT', body: expect.any(Blob) })
     );
     expect(await localDb.blobs.get(blobId)).toBeUndefined();
