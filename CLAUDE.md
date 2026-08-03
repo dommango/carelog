@@ -30,7 +30,7 @@ Run from repo root (each proxies to a workspace via `pnpm --filter`):
 ```bash
 pnpm dev                 # web dev server on :3000
 pnpm build               # build web
-pnpm test                # web unit/integration tests (vitest)
+pnpm test                # unit/integration tests (vitest): web, then @carelog/ai, then worker
 pnpm worker:dev          # worker (tsx watch) ; worker:build ; worker:start
 pnpm db:generate         # prisma generate
 pnpm db:migrate          # prisma migrate dev
