@@ -24,11 +24,31 @@ describe('checkTestLoginAccess', () => {
     ).toBe(false);
   });
 
-  it('allows development without a secret', () => {
+  it('allows development when no secret is configured', () => {
     // The login page's dev sign-in form is a browser fetch and cannot hold a
     // server secret; requiring one would only mean shipping it to the client.
     expect(
       checkTestLoginAccess({ nodeEnv: 'development', expectedSecret: '', providedSecret: null })
+    ).toEqual({ allowed: true });
+  });
+
+  it('enforces a configured secret even in development', () => {
+    // Otherwise a preview served by `next dev` is an open door to a route that
+    // grants an admin assignment and a 30-day session.
+    expect(
+      checkTestLoginAccess({
+        nodeEnv: 'development',
+        expectedSecret: SECRET,
+        providedSecret: null,
+      })
+    ).toEqual({ allowed: false, status: 401, message: 'Unauthorized' });
+
+    expect(
+      checkTestLoginAccess({
+        nodeEnv: 'development',
+        expectedSecret: SECRET,
+        providedSecret: SECRET,
+      })
     ).toEqual({ allowed: true });
   });
 

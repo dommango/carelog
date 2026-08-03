@@ -78,7 +78,14 @@ export const {
     // any patient's data is already gated per-request by getActor()/can().
     // This is the coarser door: when ALLOWED_SIGNIN_EMAILS is set, only those
     // addresses may authenticate at all. Unset, sign-in stays open.
-    async signIn({ user }) {
+    async signIn({ user, account, profile }) {
+      // What actually makes allowDangerousEmailAccountLinking safe above. The
+      // Auth.js Google provider does not check this itself, so without it an
+      // unverified Google address could be linked onto an existing account that
+      // signed up by magic link.
+      if (account?.provider === 'google' && profile?.email_verified !== true) {
+        return false;
+      }
       return isSignInAllowed(user?.email, allowedSignInEmails);
     },
     async session({ session, user }) {

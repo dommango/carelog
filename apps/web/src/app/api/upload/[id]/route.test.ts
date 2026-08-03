@@ -46,14 +46,14 @@ async function resetDb() {
   `);
 }
 
-/** One patient, one caregiver assigned to them, one photo attachment. */
-async function seedCircle(label: string) {
+/** One patient, one assigned user, one photo attachment. */
+async function seedCircle(label: string, role: Role = Role.caregiver) {
   const patient = await prisma.patient.create({ data: { name: `Patient ${label}` } });
   const user = await prisma.user.create({
-    data: { email: `${label}-${randomUUID()}@test.local`, name: `Caregiver ${label}` },
+    data: { email: `${label}-${randomUUID()}@test.local`, name: `User ${label}` },
   });
   await prisma.caregiverAssignment.create({
-    data: { userId: user.id, patientId: patient.id, role: Role.caregiver },
+    data: { userId: user.id, patientId: patient.id, role },
   });
 
   const event = await prisma.careEvent.create({
@@ -192,5 +192,139 @@ describe('PUT /api/upload/[id]', () => {
 
     expect(res.status).toBe(413);
     expect(store.objects.size).toBe(0);
+  });
+
+  it('stops pulling an oversized stream instead of draining it', async () => {
+    // The point of the streaming read, and the part a status-code assertion
+    // cannot see: `arrayBuffer()` would happily pull all 200MB before any size
+    // check ran. Here the body is a stream that counts what was taken from it.
+    const { user, attachmentId } = await seedCircle('a');
+    currentUserId.value = user.id;
+
+    const CHUNK = 1024 * 1024;
+    const TOTAL_CHUNKS = 200;
+    let chunksPulled = 0;
+
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (chunksPulled >= TOTAL_CHUNKS) {
+          controller.close();
+          return;
+        }
+        chunksPulled += 1;
+        controller.enqueue(new Uint8Array(CHUNK));
+      },
+    });
+
+    const request = new NextRequest(`http://localhost/api/upload/${attachmentId}`, {
+      method: 'PUT',
+      headers: { 'content-type': 'image/jpeg' },
+      body,
+      duplex: 'half',
+    });
+    const res = await PUT(request, { params: Promise.resolve({ id: attachmentId }) });
+
+    expect(res.status).toBe(413);
+    expect(store.objects.size).toBe(0);
+    // Cancelled a hair past the 25MB cap rather than reading all 200MB.
+    expect(chunksPulled).toBeLessThan(30);
+    expect(chunksPulled).toBeGreaterThanOrEqual(25);
+  });
+
+  it('rejects an empty body rather than storing zero bytes', async () => {
+    const { user, attachmentId } = await seedCircle('a');
+    currentUserId.value = user.id;
+
+    const res = await put(attachmentId, Buffer.alloc(0));
+
+    expect(res.status).toBe(400);
+    expect(store.objects.size).toBe(0);
+  });
+});
+
+describe('PUT /api/upload/[id] authorization', () => {
+  beforeEach(async () => {
+    store = new MemoryStorage();
+    storage.setStorage(store);
+    currentUserId.value = null;
+    await resetDb();
+  });
+
+  it('refuses a viewer, who is read-only, in their own circle', async () => {
+    // A viewer passes the patient-scope check — the attachment really is in
+    // their circle — so scope alone is not authorization.
+    const { user, attachmentId } = await seedCircle('v', Role.viewer);
+    currentUserId.value = user.id;
+
+    const res = await put(attachmentId, Buffer.from('overwritten'));
+
+    expect(res.status).toBe(403);
+    expect(store.objects.size).toBe(0);
+  });
+
+  it('allows an admin', async () => {
+    const { user, attachmentId } = await seedCircle('adm', Role.admin);
+    currentUserId.value = user.id;
+
+    const res = await put(attachmentId, Buffer.from('bytes'));
+
+    expect(res.status).toBe(204);
+  });
+
+  it('resolves the actor for the attachment’s patient, not an arbitrary one', async () => {
+    // A caregiver in two circles must be judged by the assignment that matches
+    // the attachment. Picking "the oldest assignment" would 403 this.
+    const a = await seedCircle('a');
+    const b = await seedCircle('b');
+    await prisma.caregiverAssignment.create({
+      data: { userId: a.user.id, patientId: b.patient.id, role: Role.caregiver },
+    });
+
+    currentUserId.value = a.user.id;
+    const res = await put(b.attachmentId, Buffer.from('second-circle'));
+
+    expect(res.status).toBe(204);
+    expect(store.objects.get(b.storageKey)?.body.toString()).toBe('second-circle');
+  });
+
+  it('will not overwrite bytes once the attachment is uploaded', async () => {
+    const { user, attachmentId, storageKey } = await seedCircle('a');
+    currentUserId.value = user.id;
+
+    expect((await put(attachmentId, Buffer.from('original'))).status).toBe(204);
+    await prisma.attachment.update({
+      where: { id: attachmentId },
+      data: { uploadedAt: new Date() },
+    });
+
+    // Reports success so the offline outbox's at-least-once retries settle,
+    // but the stored bytes are unchanged.
+    const res = await put(attachmentId, Buffer.from('tampered'));
+
+    expect(res.status).toBe(204);
+    expect(store.objects.get(storageKey)?.body.toString()).toBe('original');
+  });
+
+  it('records the content type it actually vetted', async () => {
+    const { user, attachmentId } = await seedCircle('a');
+    currentUserId.value = user.id;
+
+    await put(attachmentId, Buffer.from('bytes'), { 'content-type': 'image/webp' });
+
+    const row = await prisma.attachment.findUniqueOrThrow({ where: { id: attachmentId } });
+    expect(row.mimeType).toBe('image/webp');
+  });
+
+  it('accepts formats the capture UI really produces, like HEIC', async () => {
+    // Rejecting these would not block an attack; it would silently lose a
+    // caregiver's photo, because a failed upload only retries in the background.
+    const { user, attachmentId } = await seedCircle('a');
+    currentUserId.value = user.id;
+
+    const res = await put(attachmentId, Buffer.from('heic-bytes'), {
+      'content-type': 'image/heic',
+    });
+
+    expect(res.status).toBe(204);
   });
 });

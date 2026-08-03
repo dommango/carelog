@@ -7,27 +7,23 @@
 
 import { NextRequest } from 'next/server';
 import { auth } from '@/auth';
-import { getActor } from '@/lib/policy';
+import { getActorForPatient, can } from '@/lib/policy';
 import { prisma } from '@/lib/prisma';
 import { getStorage } from '@carelog/storage';
-
-// Roughly a high-resolution phone photo or a few minutes of voice memo. Kept in
-// step with the client-side cap in the create-event flow.
-const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
-
-// Only what the capture UI can actually produce, and only formats the AI
-// pipeline reads. No SVG: it is an image type that can carry script.
-const ALLOWED_MIME: Record<'photo' | 'audio', ReadonlySet<string>> = {
-  photo: new Set(['image/png', 'image/jpeg', 'image/webp']),
-  audio: new Set(['audio/webm', 'audio/mpeg', 'audio/mp4', 'audio/ogg']),
-};
+import { MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_MIME, normalizeMime } from '@/lib/upload-limits';
 
 /**
  * Read the body, giving up as soon as it exceeds `limit`. Returns null if it
  * does. Deliberately not `await request.arrayBuffer()` followed by a length
  * check: that buffers the whole payload first, so a client that understates
  * Content-Length could still make the server allocate arbitrarily much before
- * the check ever ran. Peak memory here is bounded by limit plus one chunk.
+ * the check ever ran.
+ *
+ * This bounds a single request to roughly 2x `limit` (the retained chunks plus
+ * the copy Buffer.concat makes). It does NOT bound memory across concurrent
+ * uploads — N authenticated writers still cost N x that. Closing that needs
+ * putObject to accept a stream so nothing is buffered at all; deferred with the
+ * rest of the storage-backend work.
  */
 async function readCappedBody(request: NextRequest, limit: number): Promise<Buffer | null> {
   if (!request.body) return Buffer.alloc(0);
@@ -60,11 +56,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     return new Response('Unauthorized', { status: 401 });
   }
 
-  const actor = await getActor(session.user.id as string);
-  if (!actor) {
-    return new Response('Forbidden', { status: 403 });
-  }
-
   const { id } = await params;
 
   const attachment = await prisma.attachment.findUnique({
@@ -72,6 +63,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     select: {
       storageKey: true,
       kind: true,
+      uploadedAt: true,
       event: { select: { patientId: true } },
     },
   });
@@ -80,12 +72,30 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     return new Response('Not found', { status: 404 });
   }
 
-  if (attachment.event.patientId !== actor.assignment.patientId) {
+  const patientId = attachment.event.patientId;
+
+  // Resolved for THIS patient, not "whichever assignment came first" — a
+  // caregiver in two circles must not be judged by the wrong one.
+  const actor = await getActorForPatient(session.user.id as string, patientId);
+
+  // Writing an attachment is part of authoring an event, so it takes the same
+  // permission. A viewer is read-only and must not be able to replace media
+  // merely because it belongs to a patient they can see.
+  if (!can(actor, 'event:create', { type: 'event', patientId })) {
     return new Response('Forbidden', { status: 403 });
   }
 
-  const contentType = (request.headers.get('content-type') ?? '').split(';')[0]!.trim().toLowerCase();
-  if (!ALLOWED_MIME[attachment.kind].has(contentType)) {
+  // Already stored: report success without rewriting. The bytes are immutable
+  // once uploaded, so a confirmed event's photo cannot be swapped out later
+  // while its transcript and vision summary still describe the original. 204
+  // rather than 409 keeps the offline outbox's at-least-once retries working —
+  // a retry after a failed /complete must not wedge the queue.
+  if (attachment.uploadedAt) {
+    return new Response(null, { status: 204 });
+  }
+
+  const contentType = normalizeMime(request.headers.get('content-type'));
+  if (!ALLOWED_UPLOAD_MIME[attachment.kind].has(contentType)) {
     return new Response('Unsupported media type', { status: 415 });
   }
 
@@ -102,7 +112,16 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     return new Response('Payload too large', { status: 413 });
   }
 
+  if (body.byteLength === 0) {
+    return new Response('Empty body', { status: 400 });
+  }
+
   await getStorage().putObject(attachment.storageKey, body, contentType);
+
+  // Record what was actually accepted. The row's mimeType was set from the
+  // client's claim at create time; this is the value the allowlist vetted, and
+  // it is what a future attachment-serving route should trust.
+  await prisma.attachment.update({ where: { id }, data: { mimeType: contentType } });
 
   return new Response(null, { status: 204 });
 }

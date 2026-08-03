@@ -23,8 +23,11 @@ afterEach(async () => {
 
 describe('LocalStorage path containment', () => {
   // Each of these resolves outside the root. The previous implementation only
-  // stripped a *leading* `../` run and a leading `/`, so every case below except
-  // the first walked straight out of the storage directory.
+  // stripped a *leading* `../` run and a leading `/`, which genuinely escaped
+  // for three of these: 'attachments/../../../etc/passwd' reached /etc/passwd,
+  // '../a/../../etc/passwd' reached one level above the root, and '..' resolved
+  // to the parent directory itself. The other cases were already contained by
+  // that leading strip — they are kept so the containment rule stays pinned.
   const escapes: Array<[string, string]> = [
     ['leading ../ run', '../../etc/passwd'],
     ['interior .. segments', 'attachments/../../../etc/passwd'],

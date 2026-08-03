@@ -7,6 +7,7 @@ import { localDb, getClientId, eventToLocal } from '@/lib/localDb';
 import { queueOutbox, drainOutbox } from '@/lib/outbox';
 import { Icon } from '@/components/Icon';
 import { categoryMeta } from '@/lib/categoryTheme';
+import { isAllowedUpload, MAX_UPLOAD_BYTES } from '@/lib/upload-limits';
 
 const categories = Object.values(EventCategory);
 
@@ -36,6 +37,7 @@ export default function NewEventPage() {
   const [templateName, setTemplateName] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [attachments, setAttachments] = useState<AttachmentDraft[]>([]);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -56,17 +58,33 @@ export default function NewEventPage() {
       });
   }, [templateId]);
 
+  // Validated here, against the same limits the upload route enforces, so a
+  // file the server would refuse is reported now. Left to the server alone, the
+  // rejection would surface only as a background outbox retry that gives up
+  // silently — the event would persist with its photo permanently missing.
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, kind: AttachmentKind) => {
     const files = e.target.files;
     if (!files) return;
 
-    const next = Array.from(files).map((file) => ({
-      id: crypto.randomUUID(),
-      kind,
-      mimeType: file.type,
-      file,
-    }));
-    setAttachments((prev) => [...prev, ...next].slice(0, 5));
+    const accepted: AttachmentDraft[] = [];
+    const rejected: string[] = [];
+
+    for (const file of Array.from(files)) {
+      if (!isAllowedUpload(kind, file.type)) {
+        rejected.push(`${file.name} — ${file.type || 'unrecognised format'} isn't supported`);
+      } else if (file.size > MAX_UPLOAD_BYTES) {
+        rejected.push(`${file.name} — too large (max ${Math.floor(MAX_UPLOAD_BYTES / 1024 / 1024)} MB)`);
+      } else {
+        accepted.push({ id: crypto.randomUUID(), kind, mimeType: file.type, file });
+      }
+    }
+
+    setAttachmentError(rejected.length > 0 ? rejected.join('; ') : null);
+    if (accepted.length > 0) {
+      setAttachments((prev) => [...prev, ...accepted].slice(0, 5));
+    }
+    // Let the same file be re-picked after a rejection.
+    e.target.value = '';
   };
 
   const startRecording = async () => {
@@ -284,6 +302,12 @@ export default function NewEventPage() {
             {recording ? 'Stop' : 'Voice memo'}
           </button>
         </div>
+
+        {attachmentError && (
+          <p role="alert" className="rounded-[var(--r-lg)] bg-alert-tint p-2.5 text-sm text-accent-deep">
+            {attachmentError}
+          </p>
+        )}
 
         {attachments.length > 0 && (
           <ul className="space-y-1.5">

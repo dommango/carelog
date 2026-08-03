@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { auth } from '@/auth';
-import { getActor } from '@/lib/policy';
+import { getActorForPatient, can } from '@/lib/policy';
 import { markAttachmentUploaded } from '@/lib/services/events';
 import { prisma } from '@/lib/prisma';
 import { enqueue, AI_PROCESS_EVENT } from '@carelog/queue';
@@ -15,11 +15,6 @@ export async function POST(
     return new Response('Unauthorized', { status: 401 });
   }
 
-  const actor = await getActor(session.user.id as string);
-  if (!actor) {
-    return new Response('Forbidden', { status: 403 });
-  }
-
   const { id } = await params;
 
   try {
@@ -32,7 +27,13 @@ export async function POST(
       throw new NotFoundError();
     }
 
-    if (attachment.event.patientId !== actor.assignment.patientId) {
+    const patientId = attachment.event.patientId;
+
+    // Same gate as PUT /api/upload/[id]: resolved for this specific patient,
+    // and requiring the event-authoring permission so a read-only viewer
+    // cannot drive an attachment to completion.
+    const actor = await getActorForPatient(session.user.id as string, patientId);
+    if (!can(actor, 'event:create', { type: 'event', patientId })) {
       return new Response('Forbidden', { status: 403 });
     }
 
