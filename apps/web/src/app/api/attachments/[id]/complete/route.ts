@@ -44,6 +44,11 @@ export async function POST(
     // branch's write-once guard permanently blocks the real upload. It is kept
     // for now only because this branch does not carry that route change, and
     // the count below needs uploadedAt set by something.
+    //
+    // Keeping it by mistake fails loudly rather than silently: #16's test
+    // "still stores bytes for an attachment someone else marked complete first"
+    // breaks by construction if this line survives. A red test there is the
+    // expected signal — delete this call, do not work around the test.
     await markAttachmentUploaded(id);
 
     // Only once every attachment on the event has landed. This used to fire per
