@@ -54,7 +54,9 @@ if (emailEnabled) {
   );
 }
 
-if (process.env.NODE_ENV === 'development') {
+const isDev = process.env.NODE_ENV === 'development';
+
+if (isDev) {
   providers.push(
     Credentials({
       name: 'Development',
@@ -88,7 +90,10 @@ export const {
   adapter: PrismaAdapter(prisma) as any,
   // Auth.js infers its origin from the request; required behind Railway's proxy.
   trustHost: true,
-  session: { strategy: 'database', maxAge: 30 * 24 * 60 * 60 },
+  // Auth.js refuses to start with a Credentials provider under the database
+  // strategy, and the dev-only email+name provider above is the sole way to
+  // sign in locally. Dev therefore runs on JWT sessions; prod keeps DB sessions.
+  session: { strategy: isDev ? 'jwt' : 'database', maxAge: 30 * 24 * 60 * 60 },
   pages: {
     signIn: '/login',
     // Required, not optional: with pages.signIn set, Auth.js v5 throws
@@ -98,9 +103,18 @@ export const {
   },
   providers,
   callbacks: {
-    async session({ session, user }) {
-      if (session.user && user) {
-        (session.user as any).id = user.id;
+    // Only invoked under the dev JWT strategy; carries the user id across
+    // requests the way the database strategy's `user` argument does in prod.
+    async jwt({ token, user }) {
+      if (user?.id) {
+        token.sub = user.id;
+      }
+      return token;
+    },
+    async session({ session, user, token }) {
+      const id = user?.id ?? token?.sub;
+      if (session.user && id) {
+        (session.user as any).id = id;
       }
       return session;
     },
