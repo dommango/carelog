@@ -83,8 +83,13 @@ export const {
       // Auth.js Google provider does not check this itself, so without it an
       // unverified Google address could be linked onto an existing account that
       // signed up by magic link.
-      if (account?.provider === 'google' && profile?.email_verified !== true) {
-        return false;
+      if (account?.provider === 'google') {
+        // Widened deliberately: the declared type is boolean, but this value is
+        // provider JSON at runtime and some Google endpoints have serialised
+        // the claim as the string "true". A false negative here locks the user
+        // out for good with a bare AccessDenied.
+        const verified = profile?.email_verified as unknown;
+        if (verified !== true && verified !== 'true') return false;
       }
       return isSignInAllowed(user?.email, allowedSignInEmails);
     },

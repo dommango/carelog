@@ -28,10 +28,23 @@ function asciiFilenamePart(name: string): string {
   return cleaned || 'patient';
 }
 
+/**
+ * RFC 8187 percent-encoding for the ext-value. encodeURIComponent leaves
+ * `'()*!~` bare, and `'` is not an attr-char — it is the ext-value's own
+ * delimiter, so a patient named O'Brien would emit a literal quote inside the
+ * field. Most parsers tolerate it; it is still malformed.
+ */
+function encodeRfc8187(value: string): string {
+  return encodeURIComponent(value).replace(
+    /['()*!]/g,
+    (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`
+  );
+}
+
 /** `filename` for any client, `filename*` for those that understand UTF-8. */
 function contentDisposition(name: string, extension: string): string {
   const ascii = `carelog-report-${asciiFilenamePart(name)}.${extension}`;
-  const utf8 = encodeURIComponent(`carelog-report-${name}.${extension}`);
+  const utf8 = encodeRfc8187(`carelog-report-${name}.${extension}`);
   return `attachment; filename="${ascii}"; filename*=UTF-8''${utf8}`;
 }
 

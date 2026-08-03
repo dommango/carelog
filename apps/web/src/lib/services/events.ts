@@ -235,13 +235,6 @@ export async function updateEvent(actor: Actor, id: string, input: UpdateEventIn
   return updated;
 }
 
-export async function markAttachmentUploaded(attachmentId: string): Promise<void> {
-  await prisma.attachment.update({
-    where: { id: attachmentId },
-    data: { uploadedAt: new Date() },
-  });
-}
-
 export async function confirmEvent(actor: Actor, id: string) {
   const event = await prisma.careEvent.findUnique({ where: { id } });
   if (!event) throw new NotFoundError();

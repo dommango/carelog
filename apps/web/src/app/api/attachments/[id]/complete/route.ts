@@ -1,7 +1,6 @@
 import { NextRequest } from 'next/server';
 import { auth } from '@/auth';
 import { getActorForPatient, can } from '@/lib/policy';
-import { markAttachmentUploaded } from '@/lib/services/events';
 import { prisma } from '@/lib/prisma';
 import { enqueue, AI_PROCESS_EVENT } from '@carelog/queue';
 import { NotFoundError } from '@/lib/errors';
@@ -37,7 +36,10 @@ export async function POST(
       return new Response('Forbidden', { status: 403 });
     }
 
-    await markAttachmentUploaded(id);
+    // Deliberately does NOT mark the attachment uploaded. That stamp is the
+    // record that bytes were actually stored, so it belongs to the request that
+    // stored them (PUT /api/upload/[id]). Setting it here let any caller assert
+    // an upload had happened when it had not.
     await enqueue(AI_PROCESS_EVENT, { eventId: attachment.eventId });
 
     return Response.json({ ok: true });

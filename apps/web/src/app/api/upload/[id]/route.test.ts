@@ -292,10 +292,6 @@ describe('PUT /api/upload/[id] authorization', () => {
     currentUserId.value = user.id;
 
     expect((await put(attachmentId, Buffer.from('original'))).status).toBe(204);
-    await prisma.attachment.update({
-      where: { id: attachmentId },
-      data: { uploadedAt: new Date() },
-    });
 
     // Reports success so the offline outbox's at-least-once retries settle,
     // but the stored bytes are unchanged.
@@ -303,6 +299,46 @@ describe('PUT /api/upload/[id] authorization', () => {
 
     expect(res.status).toBe(204);
     expect(store.objects.get(storageKey)?.body.toString()).toBe('original');
+  });
+
+  it('stamps uploadedAt only after the object is stored', async () => {
+    // The stamp is the record that bytes exist. If anything else could set it,
+    // write-once would start refusing the upload that was supposed to create
+    // them — see the test below.
+    const { user, attachmentId } = await seedCircle('a');
+    currentUserId.value = user.id;
+
+    const before = await prisma.attachment.findUniqueOrThrow({ where: { id: attachmentId } });
+    expect(before.uploadedAt).toBeNull();
+
+    await put(attachmentId, Buffer.from('bytes'));
+
+    const after = await prisma.attachment.findUniqueOrThrow({ where: { id: attachmentId } });
+    expect(after.uploadedAt).not.toBeNull();
+  });
+
+  it('still stores bytes for an attachment someone else marked complete first', async () => {
+    // Regression: /api/attachments/[id]/complete used to stamp uploadedAt, and
+    // anyone in the circle may call it for anyone's attachment. Combined with
+    // write-once, marking a still-pending attachment complete made the author's
+    // real upload no-op forever — the event kept showing an attachment whose
+    // bytes never existed, unrecoverably, since retries were refused too.
+    const { user, attachmentId, storageKey } = await seedCircle('a');
+    currentUserId.value = user.id;
+
+    const { POST: complete } = await import('../../attachments/[id]/complete/route');
+    const completeRes = await complete(
+      new NextRequest(`http://localhost/api/attachments/${attachmentId}/complete`, {
+        method: 'POST',
+      }),
+      { params: Promise.resolve({ id: attachmentId }) }
+    );
+    expect(completeRes.status).toBe(200);
+
+    const res = await put(attachmentId, Buffer.from('real-bytes'));
+
+    expect(res.status).toBe(204);
+    expect(store.objects.get(storageKey)?.body.toString()).toBe('real-bytes');
   });
 
   it('records the content type it actually vetted', async () => {

@@ -90,6 +90,13 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   // while its transcript and vision summary still describe the original. 204
   // rather than 409 keeps the offline outbox's at-least-once retries working —
   // a retry after a failed /complete must not wedge the queue.
+  //
+  // `uploadedAt` is stamped below, by the request that actually stores the
+  // object, and by nothing else. /api/attachments/[id]/complete used to set it,
+  // and anyone in the circle may call that for anyone's attachment — so a
+  // still-pending attachment could be marked complete and the author's real
+  // upload would then land here and no-op forever. The bytes would never exist
+  // while the timeline showed an attachment.
   if (attachment.uploadedAt) {
     return new Response(null, { status: 204 });
   }
@@ -118,10 +125,15 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
   await getStorage().putObject(attachment.storageKey, body, contentType);
 
-  // Record what was actually accepted. The row's mimeType was set from the
-  // client's claim at create time; this is the value the allowlist vetted, and
-  // it is what a future attachment-serving route should trust.
-  await prisma.attachment.update({ where: { id }, data: { mimeType: contentType } });
+  // Recorded only after the object is stored, so `uploadedAt` means "these
+  // bytes exist" rather than "somebody said so". mimeType is the value the
+  // allowlist actually vetted — the column previously held the client's
+  // unverified claim from create time, and an attachment-serving route should
+  // trust this one.
+  await prisma.attachment.update({
+    where: { id },
+    data: { mimeType: contentType, uploadedAt: new Date() },
+  });
 
   return new Response(null, { status: 204 });
 }
