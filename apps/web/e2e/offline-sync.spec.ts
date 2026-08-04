@@ -15,6 +15,13 @@ async function signIn(page: Page) {
 }
 
 test('airplane-mode capture syncs exactly one non-duplicated event', async ({ page, context }) => {
+  // Unique per attempt. The note used to be a fixed string and the final
+  // assertion counted every event card on the page, so the moment one attempt
+  // failed *after* its event reached the server, every retry was doomed: the
+  // leftover row made getByText resolve to 2 then 3 elements. Retries exist to
+  // absorb a flake, and they cannot if the test is not idempotent.
+  const note = `Offline test breakfast ${crypto.randomUUID()}`;
+
   await signIn(page);
 
   // Wait for initial sync to populate local data.
@@ -25,7 +32,7 @@ test('airplane-mode capture syncs exactly one non-duplicated event', async ({ pa
   await context.setOffline(true);
 
   // Create an event while offline using the same localDb/outbox code the UI uses.
-  const offlineEventId = await page.evaluate(async () => {
+  const offlineEventId = await page.evaluate(async (rawInput: string) => {
     const test = window.__CARELOG_TEST__;
     if (!test) throw new Error('Test helpers not exposed');
 
@@ -36,7 +43,7 @@ test('airplane-mode capture syncs exactly one non-duplicated event', async ({ pa
 
     const payload = {
       id: eventId,
-      rawInput: 'Offline test breakfast',
+      rawInput,
       category: 'meal',
       occurredAt: now,
       clientId,
@@ -68,7 +75,7 @@ test('airplane-mode capture syncs exactly one non-duplicated event', async ({ pa
     });
 
     return eventId;
-  });
+  }, note);
 
   expect(offlineEventId).toBeTruthy();
 
@@ -79,7 +86,7 @@ test('airplane-mode capture syncs exactly one non-duplicated event', async ({ pa
     return await test.localDb.events.get(id);
   }, offlineEventId);
   expect(offlineEvent).toBeTruthy();
-  expect(offlineEvent!.rawInput).toBe('Offline test breakfast');
+  expect(offlineEvent!.rawInput).toBe(note);
 
   // Go online and let the outbox drain. Poll instead of sleeping a fixed
   // interval: drain time tracks runner speed, and a hardcoded 3s wait is what
@@ -90,17 +97,24 @@ test('airplane-mode capture syncs exactly one non-duplicated event', async ({ pa
   await expect
     .poll(
       async () => {
-        const found = await page.evaluate(async () => {
+        const found = await page.evaluate(async (rawInput: string) => {
           const test = window.__CARELOG_TEST__;
           if (!test) throw new Error('Test helpers not exposed');
           const cursor = await test.getSyncCursor();
           const data = await test.pullDelta(cursor);
-          return data.events.find((e) => e.rawInput === 'Offline test breakfast')?.id;
-        });
+          return data.events.find((e) => e.rawInput === rawInput)?.id;
+        }, note);
         syncedEventId = found as string | undefined;
         return syncedEventId;
       },
-      { timeout: 20_000, intervals: [250, 500, 1000, 1000, 2000] }
+      // 45s, not 20s. The drain normally fires off the browser's `online`
+      // event and lands in well under a second. But startOutboxDrain's backstop
+      // is a 30s interval, so a missed `online` event used to blow a 20s budget
+      // by design — and this runs against `next dev`, which compiles each API
+      // route on first request, so the first POST /api/events on a cold CI
+      // runner is slow on top of that. The budget now covers the app's own
+      // recovery path instead of racing it.
+      { timeout: 45_000, intervals: [250, 500, 1000, 1000, 2000] }
     )
     .toBeTruthy();
 
@@ -110,8 +124,11 @@ test('airplane-mode capture syncs exactly one non-duplicated event', async ({ pa
   const newContext = await context.browser()!.newContext();
   const newPage = await newContext.newPage();
   await signIn(newPage);
-  await expect(newPage.getByText('Offline test breakfast')).toBeVisible();
-  const serverCount = await newPage.locator('[data-testid="event-card"]').count();
+  await expect(newPage.getByText(note)).toBeVisible();
+  // Cards carrying *this* note, not every card on the page. The duplication
+  // this guards against is one capture becoming two rows, which is what the
+  // idempotency key exists to prevent; unrelated events are not evidence of it.
+  const serverCount = await newPage.locator('[data-testid="event-card"]', { hasText: note }).count();
   expect(serverCount).toBe(1);
   await newContext.close();
 });
