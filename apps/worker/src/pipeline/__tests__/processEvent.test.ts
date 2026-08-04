@@ -1,10 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { EventStatus, EventCategory } from '@carelog/db';
 import { applyConfidenceGate } from '../confidenceGate.js';
-import { normalizeEventData, NormalizeContext } from '../normalize.js';
+import { normalizeEventData } from '../normalize.js';
 import * as ai from '@carelog/ai';
-
-type PipelineEvent = NormalizeContext['event'];
 
 const audioAttachment = {
   id: 'att-1',
@@ -32,17 +30,16 @@ const photoAttachment = {
   createdAt: new Date(),
 };
 
-function buildEvent(overrides: Partial<PipelineEvent> = {}): PipelineEvent {
-  return {
-    id: 'event-1',
-    patientId: 'patient-1',
-    authorId: 'user-1',
-    category: null,
-    status: EventStatus.pending_ai,
-    occurredAt: new Date('2026-07-05T10:00:00Z'),
-    capturedAt: new Date('2026-07-05T10:05:00Z'),
-    rawInput: 'Gave her morning meds',
-    structuredData: null,
+const baseEvent = {
+  id: 'event-1',
+  patientId: 'patient-1',
+  authorId: 'user-1',
+  category: null,
+  status: EventStatus.pending_ai,
+  occurredAt: new Date('2026-07-05T10:00:00Z'),
+  capturedAt: new Date('2026-07-05T10:05:00Z'),
+  rawInput: 'Gave her morning meds' as string | null,
+  structuredData: null,
     aiConfidence: null,
     aiFlags: [],
     aiModelVersion: null,
