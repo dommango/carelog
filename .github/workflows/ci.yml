@@ -67,6 +67,20 @@ jobs:
       - name: Build workspace packages
         run: pnpm --filter "./packages/*" build
 
+      # Production applies the committed migrations (docker-start.sh runs
+      # `migrate deploy`), but the suites below seed a throwaway database with
+      # `db push` straight from schema.prisma. Nothing else would notice if the
+      # two drifted — the first symptom would be a failed deploy. Exits 2 and
+      # names the offending column when they disagree.
+      - name: Check migrations match the schema
+        run: |
+          PGPASSWORD=carelog createdb -h localhost -p 5432 -U carelog carelog_shadow
+          pnpm --filter @carelog/db exec prisma migrate diff \
+            --from-migrations ./prisma/migrations \
+            --to-schema-datamodel ./prisma/schema.prisma \
+            --shadow-database-url postgresql://carelog:carelog@localhost:5432/carelog_shadow \
+            --exit-code
+
       # Most vitest suites are integration tests that hit a real database.
       - name: Push schema to the test database
         run: pnpm db:push
