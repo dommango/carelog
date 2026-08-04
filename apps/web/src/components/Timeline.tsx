@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { liveQuery } from 'dexie';
-import { localDb, getClientId, type LocalEvent, type LocalTemplate } from '@/lib/localDb';
+import { localDb, getClientId, isOnline, type LocalEvent, type LocalTemplate } from '@/lib/localDb';
 import { pullDelta, getSyncCursor } from '@/lib/sync';
 import { queueOutbox, retryOutboxItem } from '@/lib/outbox';
 import { announce } from '@/lib/announcer';
@@ -177,8 +177,13 @@ export default function Timeline() {
     setBusyId(event.id);
     setActionErrors((prev) => withoutError(prev, event.id));
     try {
+      // Empty means a photo/voice-only entry whose note was never set — leave
+      // rawInput alone locally and omit it from the PATCH (the server rejects
+      // empty strings, and sending nothing means "unchanged").
+      const rawInputChange = values.rawInput.length > 0 ? { rawInput: values.rawInput } : {};
+
       await localDb.events.update(event.id, {
-        rawInput: values.rawInput,
+        ...rawInputChange,
         category: values.category,
         occurredAt: values.occurredAt,
         synced: false,
@@ -189,7 +194,7 @@ export default function Timeline() {
         type: 'event:update',
         payload: {
           eventId: event.id,
-          rawInput: values.rawInput,
+          ...rawInputChange,
           category: values.category ?? undefined,
           occurredAt: values.occurredAt,
           version: event.version,
@@ -214,6 +219,13 @@ export default function Timeline() {
   const retrySync = async (eventId: string, itemId: string) => {
     setBusyId(eventId);
     setRetryErrors((prev) => withoutError(prev, eventId));
+    if (!isOnline()) {
+      setRetryErrors((prev) =>
+        withError(prev, eventId, 'You are offline — connect to the internet, then try again.')
+      );
+      setBusyId(null);
+      return;
+    }
     try {
       await retryOutboxItem(itemId);
       announce('Trying to save this entry again');
