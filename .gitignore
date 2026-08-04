@@ -10,9 +10,13 @@ dist/
 build/
 *.tsbuildinfo
 
-# Environment variables
+# Environment variables & key material (env.example has no leading dot on purpose)
 .env
+.env.*
 .env*.local
+*.pem
+*.key
+*.p12
 
 # Logs
 *.log
@@ -25,6 +29,11 @@ pnpm-debug.log*
 coverage/
 .nyc_output/
 test-results/
+playwright-report/
+
+# Database dumps
+*.dump
+*.sql.gz
 
 # Generated service worker
 apps/web/sw.js
@@ -40,6 +49,10 @@ apps/worker/storage/
 .idea/
 *.swp
 *.swo
+
+# Claude Code local state
+.claude/settings.local.json
+.claude/worktrees/
 
 # OS
 .DS_Store
