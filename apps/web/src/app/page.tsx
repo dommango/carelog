@@ -22,7 +22,8 @@ export default async function HomePage() {
     redirect('/onboarding');
   }
 
-  const schedules = await listSchedules(actor);
+  const [schedules, patients] = await Promise.all([listSchedules(actor), listPatients(actor)]);
+  const patientName = patients[0]?.name ?? null;
   const now = new Date();
   const horizonEnd = new Date(now.getTime() + 12 * 60 * 60 * 1000);
   const horizonStart = new Date(now.getTime() - 2 * 60 * 60 * 1000);
@@ -59,6 +60,8 @@ export default async function HomePage() {
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4">
+      <h1 className="sr-only">{patientName ? `Care log for ${patientName}` : 'Care log'}</h1>
+
       {checklist && <OnboardingChecklist checklist={checklist} />}
 
       {upcoming.length > 0 && (
