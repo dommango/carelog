@@ -77,6 +77,7 @@ describe('normalizeEventData', () => {
       aiConfidence: null,
       aiFlags: [],
       aiModelVersion: null,
+      aiClaimedAt: null,
       scheduleId: null,
       templateId: null,
       hasConflict: false,

@@ -13,7 +13,7 @@ import {
 import { createEvent } from '@/lib/services/events';
 import { createSchedule } from '@/lib/services/schedules';
 import { Actor } from '@/lib/policy';
-import { Role, NotifChannel, NotifDelivery } from '@carelog/db';
+import { Role, NotifChannel, NotifDelivery, NotifKind } from '@carelog/db';
 import { randomUUID } from 'crypto';
 
 async function resetDb() {
@@ -85,7 +85,7 @@ describe('notifications service', () => {
     expect(pending[0].title).toBe('Past');
   });
 
-  it('deduplicates notification rows by schedule, user, dueAt and channel', async () => {
+  it('collapses a repeat notification for the same occurrence instead of duplicating it', async () => {
     const { adminActor, adminUser } = await seed();
     const schedule = await createSchedule(adminActor, {
       name: 'Meds',
@@ -93,7 +93,7 @@ describe('notifications service', () => {
     });
     const dueAt = new Date('2026-07-05T08:00:00Z');
 
-    await createNotification(null, {
+    const first = await createNotification(null, {
       scheduleId: schedule.id,
       userId: adminUser.id,
       channel: NotifChannel.push,
@@ -102,7 +102,7 @@ describe('notifications service', () => {
       body: 'Hello',
     });
 
-    await createNotification(null, {
+    const second = await createNotification(null, {
       scheduleId: schedule.id,
       userId: adminUser.id,
       channel: NotifChannel.push,
@@ -111,10 +111,54 @@ describe('notifications service', () => {
       body: 'Hello',
     });
 
+    // Was two rows: the service allowed duplicates and left it to each caller
+    // to check first. Telling a caregiver the same dose is due twice reads as a
+    // second dose, so the rule is a unique index now and the repeat returns the
+    // row that already exists.
     const rows = await prisma.notification.findMany({
       where: { scheduleId: schedule.id, userId: adminUser.id, dueAt, channel: NotifChannel.push },
     });
-    expect(rows).toHaveLength(2); // service allows duplicates; cron must check first
+    expect(rows).toHaveLength(1);
+    expect(second.id).toBe(first.id);
+    expect(rows[0].title).toBe('First');
+  });
+
+  it('keeps an escalation distinct from the reminder it follows', async () => {
+    // Same schedule, user, dueAt and channel — only `kind` differs. If the
+    // dedupe key omitted it, every escalation would collide with its own
+    // reminder and never be delivered.
+    const { adminActor, adminUser } = await seed();
+    const schedule = await createSchedule(adminActor, {
+      name: 'Meds',
+      rrule: 'FREQ=DAILY;BYHOUR=8;BYMINUTE=0;BYSECOND=0',
+    });
+    const dueAt = new Date('2026-07-05T08:00:00Z');
+
+    const reminder = await createNotification(null, {
+      scheduleId: schedule.id,
+      userId: adminUser.id,
+      channel: NotifChannel.push,
+      kind: NotifKind.reminder,
+      dueAt,
+      title: 'Meds due',
+      body: 'Hello',
+    });
+
+    const escalation = await createNotification(null, {
+      scheduleId: schedule.id,
+      userId: adminUser.id,
+      channel: NotifChannel.push,
+      kind: NotifKind.escalation,
+      dueAt,
+      title: 'Escalation: Meds not logged',
+      body: 'Hello',
+    });
+
+    expect(escalation.id).not.toBe(reminder.id);
+    const rows = await prisma.notification.findMany({
+      where: { scheduleId: schedule.id, userId: adminUser.id, dueAt },
+    });
+    expect(rows).toHaveLength(2);
   });
 
   it('marks notifications acknowledged when an event links to a schedule occurrence', async () => {

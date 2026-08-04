@@ -2,35 +2,69 @@ import { prisma } from '@/lib/prisma';
 import { Actor, can } from '@/lib/policy';
 import { writeAudit } from '@/lib/audit';
 import { ForbiddenError, NotFoundError } from '@/lib/errors';
-import { NotifChannel, NotifDelivery } from '@carelog/db';
+import { NotifChannel, NotifDelivery, NotifKind, Prisma } from '@carelog/db';
 
 export type CreateNotificationInput = {
   scheduleId?: string;
   userId: string;
   channel: NotifChannel;
+  kind?: NotifKind;
   dueAt: Date;
   title: string;
   body: string;
   deliveryStatus?: NotifDelivery;
 };
 
+/**
+ * Idempotent on (scheduleId, userId, dueAt, channel, kind).
+ *
+ * Telling one caregiver twice that the same dose is due, for the same minute,
+ * is not a harmless duplicate — it reads as a second dose. That rule now lives
+ * in a unique index rather than in whichever caller remembered to check first,
+ * so a repeat here returns the notification that already exists.
+ */
 export async function createNotification(actor: Actor | null, input: CreateNotificationInput) {
   if (actor && !can(actor, 'schedule:read', { type: 'schedule', patientId: actor.assignment.patientId })) {
     throw new ForbiddenError();
   }
 
-  const notification = await prisma.notification.create({
-    data: {
-      scheduleId: input.scheduleId ?? null,
-      userId: input.userId,
-      channel: input.channel,
-      dueAt: input.dueAt,
-      title: input.title,
-      body: input.body,
-      deliveryStatus: input.deliveryStatus ?? NotifDelivery.logged_only,
-      sentAt: new Date(),
-    },
-  });
+  const kind = input.kind ?? NotifKind.reminder;
+
+  let notification;
+  try {
+    notification = await prisma.notification.create({
+      data: {
+        scheduleId: input.scheduleId ?? null,
+        userId: input.userId,
+        channel: input.channel,
+        kind,
+        dueAt: input.dueAt,
+        title: input.title,
+        body: input.body,
+        deliveryStatus: input.deliveryStatus ?? NotifDelivery.logged_only,
+        sentAt: new Date(),
+      },
+    });
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002' &&
+      input.scheduleId
+    ) {
+      const existing = await prisma.notification.findFirst({
+        where: {
+          scheduleId: input.scheduleId,
+          userId: input.userId,
+          dueAt: input.dueAt,
+          channel: input.channel,
+          kind,
+        },
+      });
+      // Nothing new was written, so nothing new to audit.
+      if (existing) return existing;
+    }
+    throw error;
+  }
 
   await writeAudit({
     actorType: 'system',

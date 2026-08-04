@@ -4,19 +4,29 @@ import { capVisionSummary, completeText } from '@carelog/ai';
 
 export async function analyzeImage(
   attachmentId: string,
-  storageKey: string
+  storageKey: string,
+  mimeType?: string
 ): Promise<string | null> {
-  const storage = getStorageForWorker();
-  const obj = await storage.getObject(storageKey);
-
   if (!process.env.ANTHROPIC_API_KEY) {
     console.warn(`[worker] ANTHROPIC_API_KEY missing; skipping image analysis for ${attachmentId}`);
     return null;
   }
 
+  // Inside the try: the storage read used to sit above it, so a missing or
+  // unreadable file threw straight out of the whole pipeline run rather than
+  // degrading to "no vision summary".
   try {
+    const storage = getStorageForWorker();
+    const obj = await storage.getObject(storageKey);
+
     const base64 = obj.body.toString('base64');
-    const mime = obj.contentType ?? 'image/jpeg';
+    // The attachment row, not the storage layer's guess. LocalStorage infers
+    // the content type from the key's file extension, and storage keys are
+    // `attachments/<eventId>/<attachmentId>` with no extension — so this was
+    // always application/octet-stream, which the Anthropic client's media-type
+    // mapping then defaults to image/jpeg. Every PNG and WebP was being sent
+    // labelled as a JPEG.
+    const mime = mimeType ?? obj.contentType ?? 'image/jpeg';
 
     const summary = await completeText({
       system:

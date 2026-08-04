@@ -3,8 +3,11 @@ name: CI
 on:
   push:
     branches: [main]
+  # Every pull request, not only those targeting main. `branches: [main]` filters
+  # on the PR's *base*, so a PR stacked on another branch got no CI at all —
+  # silently, which is the worst way to have none. Stacked PRs are exactly the
+  # ones where a green base is not evidence the head is sound.
   pull_request:
-    branches: [main]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -81,9 +84,14 @@ jobs:
             --shadow-database-url postgresql://carelog:carelog@localhost:5432/carelog_shadow \
             --exit-code
 
-      # Most vitest suites are integration tests that hit a real database.
-      - name: Push schema to the test database
-        run: pnpm db:push
+      # Applies the committed migrations, exactly as the container does. This
+      # used to be `db push`, which stopped working the moment a migration
+      # introduced a unique constraint: push refuses any new unique index
+      # without --accept-data-loss, regardless of whether the database has data.
+      # Running the real migrations here also means CI exercises the path
+      # production takes.
+      - name: Apply migrations to the test database
+        run: pnpm db:deploy
 
       # No typecheck script in the repo — call tsc directly, per CLAUDE.md.
       - name: Typecheck
@@ -147,8 +155,8 @@ jobs:
       - name: Build workspace packages
         run: pnpm --filter "./packages/*" build
 
-      - name: Push schema to the test database
-        run: pnpm db:push
+      - name: Apply migrations to the test database
+        run: pnpm db:deploy
 
       - name: Install Playwright browser
         run: pnpm --filter web exec playwright install --with-deps chromium

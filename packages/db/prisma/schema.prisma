@@ -50,6 +50,16 @@ enum NotifChannel {
   in_app
 }
 
+// Distinguishes the two reasons a notification exists. Without it, the dedupe
+// key below cannot tell "your medication is due" from "that medication was
+// never logged" — they share a schedule, user, due time and channel, so a
+// unique constraint over those four alone would make every escalation collide
+// with the reminder that preceded it.
+enum NotifKind {
+  reminder
+  escalation
+}
+
 enum NotifDelivery {
   sent
   logged_only
@@ -169,6 +179,10 @@ model CareEvent {
   aiConfidence    Float?        @map("ai_confidence")
   aiFlags         String[]      @map("ai_flags")
   aiModelVersion  String?       @map("ai_model_version")
+  // Lease held by the worker while it enriches this event, so a duplicate
+  // delivery or retry cannot run the pipeline twice. A lease and not a boolean:
+  // a worker that dies mid-run must not strand the event at pending_ai forever.
+  aiClaimedAt     DateTime?     @map("ai_claimed_at")
   scheduleId      String?       @map("schedule_id")
 
   templateId      String?       @map("template_id")
@@ -190,6 +204,7 @@ model CareEvent {
   @@index([patientId, occurredAt])
   @@index([patientId, updatedAt])
   @@index([patientId, category, occurredAt])
+  @@index([scheduleId, occurredAt])
   @@map("care_events")
 }
 
@@ -207,6 +222,7 @@ model Attachment {
 
   event CareEvent @relation(fields: [eventId], references: [id])
 
+  @@index([eventId])
   @@map("attachments")
 }
 
@@ -225,6 +241,7 @@ model Template {
   patient Patient     @relation(fields: [patientId], references: [id])
   events  CareEvent[]
 
+  @@index([patientId, updatedAt])
   @@map("templates")
 }
 
@@ -245,6 +262,7 @@ model Schedule {
   patient Patient     @relation(fields: [patientId], references: [id])
   events  CareEvent[]
 
+  @@index([patientId, updatedAt])
   @@map("schedules")
 }
 
@@ -253,6 +271,7 @@ model Notification {
   scheduleId     String?        @map("schedule_id")
   userId         String         @map("user_id")
   channel        NotifChannel
+  kind           NotifKind      @default(reminder)
   deliveryStatus NotifDelivery? @map("delivery_status")
   title          String
   body           String
@@ -262,9 +281,28 @@ model Notification {
   escalatedAt    DateTime?      @map("escalated_at")
   createdAt      DateTime       @default(now()) @map("created_at")
 
+  // Makes the "have we already told them?" check race-safe. The cron read then
+  // wrote, so two overlapping ticks — a retry, or a second worker — could both
+  // see nothing and both notify. Enforced in the database instead, with the
+  // insert catching P2002. Postgres does not treat NULLs as equal, so rows with
+  // no scheduleId are exempt; every reminder and escalation has one.
+  @@unique([scheduleId, userId, dueAt, channel, kind])
   @@index([scheduleId, dueAt])
   @@index([userId, acknowledgedAt, dueAt])
   @@map("notifications")
+}
+
+/// Single-row liveness marker for the worker's cron loop. The web process is
+/// what answers /api/health, and it cannot see whether the worker is alive from
+/// inside its own container — a worker that died silently leaves reminders
+/// unfired while the container still reports healthy.
+model WorkerHeartbeat {
+  // Written explicitly rather than with @updatedAt, so a caller can stamp a
+  // specific instant and tests can assert on it.
+  id       String   @id @default("singleton")
+  tickedAt DateTime @default(now()) @map("ticked_at")
+
+  @@map("worker_heartbeat")
 }
 
 model PushSubscription {

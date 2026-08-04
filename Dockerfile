@@ -38,4 +38,4 @@ ENV NEXTAUTH_SECRET="build-time-placeholder"
 RUN pnpm -r run build
 
 EXPOSE 3000
-CMD ["sh", "/app/docker-start.sh"]
+CMD ["bash", "/app/docker-start.sh"]

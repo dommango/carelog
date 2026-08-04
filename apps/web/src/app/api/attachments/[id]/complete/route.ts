@@ -40,7 +40,26 @@ export async function POST(
     // record that bytes were actually stored, so it belongs to the request that
     // stored them (PUT /api/upload/[id]). Setting it here let any caller assert
     // an upload had happened when it had not.
-    await enqueue(AI_PROCESS_EVENT, { eventId: attachment.eventId });
+
+    // Enqueue only once every attachment on the event has landed. This used to
+    // fire per attachment, so a two-photo event queued two pipeline runs — the
+    // first reading media the second was still uploading, and both racing on
+    // the same row. The worker needs all the files present to enrich the event
+    // once. `uploadedAt` is set by the upload route, so this now counts
+    // attachments whose bytes genuinely exist.
+    const pending = await prisma.attachment.count({
+      where: { eventId: attachment.eventId, uploadedAt: null },
+    });
+
+    if (pending === 0) {
+      // singletonKey collapses a duplicate enqueue for the same event into one
+      // queued job, which matters when uploads finish near-simultaneously.
+      await enqueue(
+        AI_PROCESS_EVENT,
+        { eventId: attachment.eventId },
+        { singletonKey: attachment.eventId }
+      );
+    }
 
     return Response.json({ ok: true });
   } catch (error) {
