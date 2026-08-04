@@ -4,6 +4,7 @@ import { ForbiddenError, NotFoundError } from '@/lib/errors';
 import { ReportQueryInput } from '@/lib/zod';
 import { expandSchedule } from '@/lib/services/schedules';
 import { EventCategory, EventStatus, Prisma } from '@carelog/db';
+import { dayKeyForOffset } from '@/components/reports/report-dates';
 
 export type TimelineFilters = {
   category?: EventCategory;
@@ -217,8 +218,10 @@ function getMoodScore(structuredData: Prisma.JsonValue | null): number | null {
   return null;
 }
 
-function toDateKey(date: Date): string {
-  return date.toISOString().slice(0, 10);
+// Day buckets must land on the same calendar day the caller sees locally —
+// the client sends its UTC offset alongside the range boundaries it computed.
+function toDateKey(date: Date, tzOffsetMinutes = 0): string {
+  return dayKeyForOffset(date, tzOffsetMinutes);
 }
 
 export async function getMoodTrends(
@@ -227,6 +230,7 @@ export async function getMoodTrends(
 ): Promise<MoodPoint[]> {
   const patientId = resolvePatientId(actor, input);
   const range = toDateRange(input);
+  const tz = input.tzOffsetMinutes ?? 0;
 
   const [moodEvents, incidentEvents] = await Promise.all([
     prisma.careEvent.findMany({
@@ -254,7 +258,7 @@ export async function getMoodTrends(
   const byDay = new Map<string, { scores: number[]; incidents: number; painFlags: number }>();
 
   for (const event of moodEvents) {
-    const key = toDateKey(event.occurredAt);
+    const key = toDateKey(event.occurredAt, tz);
     const bucket = byDay.get(key) ?? { scores: [], incidents: 0, painFlags: 0 };
     const score = getMoodScore(event.structuredData);
     if (score !== null) bucket.scores.push(score);
@@ -262,7 +266,7 @@ export async function getMoodTrends(
   }
 
   for (const event of incidentEvents) {
-    const key = toDateKey(event.occurredAt);
+    const key = toDateKey(event.occurredAt, tz);
     const bucket = byDay.get(key) ?? { scores: [], incidents: 0, painFlags: 0 };
     bucket.incidents += event.category === EventCategory.incident ? 1 : 0;
     if (event.aiFlags.includes('mentions_pain')) bucket.painFlags += 1;
@@ -272,7 +276,7 @@ export async function getMoodTrends(
   const points: MoodPoint[] = [];
   const cursor = new Date(range.start);
   while (cursor <= range.end) {
-    const key = toDateKey(cursor);
+    const key = toDateKey(cursor, tz);
     const bucket = byDay.get(key);
     const avg = bucket?.scores.length
       ? Math.round((bucket.scores.reduce((a, b) => a + b, 0) / bucket.scores.length) * 10) / 10
@@ -296,6 +300,7 @@ export async function getMealHydrationSummary(
 ): Promise<MealHydrationDay[]> {
   const patientId = resolvePatientId(actor, input);
   const range = toDateRange(input);
+  const tz = input.tzOffsetMinutes ?? 0;
 
   const events = await prisma.careEvent.findMany({
     where: {
@@ -308,7 +313,7 @@ export async function getMealHydrationSummary(
   const byDay = new Map<string, { meals: number; hydration: number }>();
 
   for (const event of events) {
-    const key = toDateKey(event.occurredAt);
+    const key = toDateKey(event.occurredAt, tz);
     const bucket = byDay.get(key) ?? { meals: 0, hydration: 0 };
     if (event.category === EventCategory.meal) bucket.meals += 1;
     if (event.category === EventCategory.hydration) bucket.hydration += 1;
@@ -318,7 +323,7 @@ export async function getMealHydrationSummary(
   const summary: MealHydrationDay[] = [];
   const cursor = new Date(range.start);
   while (cursor <= range.end) {
-    const key = toDateKey(cursor);
+    const key = toDateKey(cursor, tz);
     const bucket = byDay.get(key);
     summary.push({
       date: key,

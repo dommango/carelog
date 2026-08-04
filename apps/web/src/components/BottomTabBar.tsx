@@ -21,7 +21,7 @@ export function BottomTabBar({ isAdmin = false }: { isAdmin?: boolean }) {
   const tabs = isAdmin ? [...TABS, ADMIN_TAB] : TABS;
 
   return (
-    <nav className="sticky bottom-0 z-10 flex border-t border-line bg-card">
+    <nav aria-label="Main" className="sticky bottom-0 z-10 flex border-t border-line bg-card">
       {tabs.map((tab) => {
         const active = tab.href === '/' ? pathname === '/' : pathname.startsWith(tab.href);
         return (
@@ -29,7 +29,7 @@ export function BottomTabBar({ isAdmin = false }: { isAdmin?: boolean }) {
             key={tab.href}
             href={tab.href}
             aria-current={active ? 'page' : undefined}
-            className="flex flex-1 flex-col items-center gap-[3px] py-[11px] pb-[6px] text-[11.5px] font-extrabold"
+            className="flex flex-1 flex-col items-center gap-[3px] py-[11px] pb-[6px] text-[13px] font-extrabold"
             style={{ color: active ? 'var(--accent-deep)' : 'var(--ink-faint)' }}
           >
             <span

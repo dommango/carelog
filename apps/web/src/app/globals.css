@@ -19,6 +19,14 @@ a {
   color: var(--accent-deep);
 }
 
+/* Hover underlines rather than lightening the link: every terracotta light enough
+   to read as a hue shift from --accent-deep drops below 4.5:1 on --sand-deep. */
 a:hover {
-  color: var(--accent);
+  color: var(--accent-deep);
+  text-decoration: underline;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent-deep);
+  outline-offset: 2px;
 }

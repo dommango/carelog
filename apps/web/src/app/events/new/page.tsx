@@ -6,17 +6,11 @@ import { EventCategory, AttachmentKind } from '@carelog/db';
 import { localDb, getClientId, eventToLocal } from '@/lib/localDb';
 import { queueOutbox, drainOutbox } from '@/lib/outbox';
 import { Icon } from '@/components/Icon';
-import { categoryMeta } from '@/lib/categoryTheme';
 import { isAllowedUpload, MAX_UPLOAD_BYTES } from '@/lib/upload-limits';
-
-const categories = Object.values(EventCategory);
-
-type AttachmentDraft = {
-  id: string;
-  kind: AttachmentKind;
-  mimeType: string;
-  file: File;
-};
+import { CategoryChips } from './CategoryChips';
+import { AttachmentFields, AttachmentDraft } from './AttachmentFields';
+import { validateEventDraft, hasDraftErrors, EventDraftErrors } from './validate';
+import { toLocalDatetimeInputValue } from '@/lib/datetime-local';
 
 export default function NewEventPage() {
   const router = useRouter();
@@ -29,18 +23,21 @@ export default function NewEventPage() {
   const [rawInput, setRawInput] = useState('');
   const [occurredAt, setOccurredAt] = useState(() => {
     if (dueAtParam) {
-      const d = new Date(dueAtParam);
-      if (!isNaN(d.getTime())) return d.toISOString().slice(0, 16);
+      const due = toLocalDatetimeInputValue(dueAtParam);
+      if (due) return due;
     }
-    return new Date().toISOString().slice(0, 16);
+    return toLocalDatetimeInputValue(new Date());
   });
   const [templateName, setTemplateName] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [attachments, setAttachments] = useState<AttachmentDraft[]>([]);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<EventDraftErrors>({});
   const [recording, setRecording] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const rawInputRef = useRef<HTMLTextAreaElement>(null);
+  const occurredAtRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!templateId) return;
@@ -57,6 +54,13 @@ export default function NewEventPage() {
         // ignore; user can still submit manually
       });
   }, [templateId]);
+
+  // An attachment satisfies the "say something" rule on its own, so adding one
+  // clears the empty-draft error rather than leaving it stale on screen.
+  const addAttachments = (drafts: AttachmentDraft[]) => {
+    setAttachments((prev) => [...prev, ...drafts].slice(0, 5));
+    setErrors((prev) => ({ ...prev, rawInput: undefined }));
+  };
 
   // Validated here, against the same limits the upload route enforces, so a
   // file the server would refuse is reported now. Left to the server alone, the
@@ -81,38 +85,55 @@ export default function NewEventPage() {
 
     setAttachmentError(rejected.length > 0 ? rejected.join('; ') : null);
     if (accepted.length > 0) {
-      setAttachments((prev) => [...prev, ...accepted].slice(0, 5));
+      addAttachments(accepted);
     }
     // Let the same file be re-picked after a rejection.
     e.target.value = '';
   };
 
   const startRecording = async () => {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const recorder = new MediaRecorder(stream);
-    mediaRecorderRef.current = recorder;
-    audioChunksRef.current = [];
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = recorder;
+      audioChunksRef.current = [];
 
-    recorder.ondataavailable = (event) => {
-      if (event.data.size > 0) audioChunksRef.current.push(event.data);
-    };
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) audioChunksRef.current.push(event.data);
+      };
 
-    recorder.onstop = () => {
-      const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-      const file = new File([blob], `recording-${Date.now()}.webm`, { type: 'audio/webm' });
-      setAttachments((prev) =>
-        [...prev, { id: crypto.randomUUID(), kind: AttachmentKind.audio, mimeType: file.type, file }].slice(0, 5)
+      recorder.onstop = () => {
+        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const file = new File([blob], `recording-${Date.now()}.webm`, { type: 'audio/webm' });
+        addAttachments([
+          { id: crypto.randomUUID(), kind: AttachmentKind.audio, mimeType: file.type, file },
+        ]);
+        stream.getTracks().forEach((track) => track.stop());
+      };
+
+      setAttachmentError(null);
+      recorder.start();
+      setRecording(true);
+    } catch (error) {
+      console.error('Microphone unavailable:', error);
+      setRecording(false);
+      setAttachmentError(
+        "Couldn't start recording — check the microphone permission for this site, or type the note instead."
       );
-      stream.getTracks().forEach((track) => track.stop());
-    };
-
-    recorder.start();
-    setRecording(true);
+    }
   };
 
   const stopRecording = () => {
     mediaRecorderRef.current?.stop();
     setRecording(false);
+  };
+
+  const toggleRecording = () => {
+    if (recording) {
+      stopRecording();
+      return;
+    }
+    startRecording().catch((error) => console.error('Recording failed:', error));
   };
 
   const removeAttachment = (id: string) => {
@@ -121,6 +142,20 @@ export default function NewEventPage() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const draftErrors = validateEventDraft({
+      rawInput,
+      occurredAt,
+      attachmentCount: attachments.length,
+    });
+    setErrors(draftErrors);
+
+    if (hasDraftErrors(draftErrors)) {
+      if (draftErrors.rawInput) rawInputRef.current?.focus();
+      else occurredAtRef.current?.focus();
+      return;
+    }
+
     setLoading(true);
 
     const eventId = crypto.randomUUID();
@@ -135,9 +170,11 @@ export default function NewEventPage() {
       sizeBytes: a.file.size,
     }));
 
+    const trimmedInput = rawInput.trim();
+
     const payload = {
       id: eventId,
-      rawInput,
+      rawInput: trimmedInput.length > 0 ? trimmedInput : undefined,
       category: category || undefined,
       occurredAt: new Date(occurredAt).toISOString(),
       templateId: templateId ?? undefined,
@@ -199,7 +236,7 @@ export default function NewEventPage() {
   };
 
   return (
-    <form onSubmit={submit} className="mx-auto flex max-w-xl flex-col gap-4 md:max-w-2xl">
+    <form noValidate onSubmit={submit} className="mx-auto flex max-w-xl flex-col gap-4 md:max-w-2xl">
       <div className="-mx-4 -mt-[18px] mb-1 flex items-center gap-2 border-b border-line bg-card px-4 py-3.5">
         <button type="button" onClick={() => router.back()} className="cc-btn cc-btn--ghost cc-btn--sm !pl-1.5">
           <Icon name="chevL" size={16} />
@@ -210,51 +247,74 @@ export default function NewEventPage() {
 
       <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
         <div>
-          <label className="cc-field-label">
+          <span id="category-label" className="cc-field-label">
             Category <span className="font-semibold text-ink-faint">· optional, auto-detected</span>
-          </label>
-          <div className="flex flex-wrap gap-[7px]">
-            {categories.map((c) => {
-              const meta = categoryMeta(c);
-              const active = category === c;
-              return (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => setCategory(active ? '' : c)}
-                  className={`cc-btn cc-btn--sm ${active ? 'cc-btn--primary' : 'cc-btn--secondary'}`}
-                >
-                  <Icon name={meta.icon} size={14} />
-                  {meta.label}
-                </button>
-              );
-            })}
-          </div>
+          </span>
+          <CategoryChips labelId="category-label" value={category} onChange={setCategory} />
         </div>
 
         <div className="md:w-60">
-          <label className="cc-field-label">When</label>
+          <label htmlFor="occurred-at" className="cc-field-label">
+            When <span className="font-semibold text-ink-faint">· required</span>
+          </label>
           <input
+            id="occurred-at"
+            ref={occurredAtRef}
             type="datetime-local"
             value={occurredAt}
-            onChange={(e) => setOccurredAt(e.target.value)}
-            required
+            onChange={(e) => {
+              setOccurredAt(e.target.value);
+              setErrors((prev) => ({ ...prev, occurredAt: undefined }));
+            }}
+            aria-required
+            aria-invalid={errors.occurredAt ? true : undefined}
+            aria-describedby={errors.occurredAt ? 'occurred-at-error' : undefined}
             className="cc-input"
           />
+          {errors.occurredAt && (
+            <p
+              id="occurred-at-error"
+              role="alert"
+              className="mt-2 rounded-[var(--r-lg)] bg-alert-tint p-2.5 text-sm font-semibold text-accent-deep"
+            >
+              {errors.occurredAt}
+            </p>
+          )}
         </div>
       </div>
 
       <div>
-        <label className="cc-field-label">What happened</label>
+        <label htmlFor="raw-input" className="cc-field-label">
+          What happened{' '}
+          <span className="font-semibold text-ink-faint">
+            · required, unless you add a photo or voice memo
+          </span>
+        </label>
         <textarea
+          id="raw-input"
+          ref={rawInputRef}
           value={rawInput}
-          onChange={(e) => setRawInput(e.target.value)}
-          required
+          onChange={(e) => {
+            setRawInput(e.target.value);
+            setErrors((prev) => ({ ...prev, rawInput: undefined }));
+          }}
           rows={4}
+          aria-required={attachments.length === 0}
+          aria-invalid={errors.rawInput ? true : undefined}
+          aria-describedby={errors.rawInput ? 'raw-input-error raw-input-hint' : 'raw-input-hint'}
           className="cc-input resize-none md:min-h-[9.5rem]"
           placeholder="Say it however you'd tell a nurse — we'll sort out the details."
         />
-        <div className="cc-note cc-note--calm mt-2.5">
+        {errors.rawInput && (
+          <p
+            id="raw-input-error"
+            role="alert"
+            className="mt-2 rounded-[var(--r-lg)] bg-alert-tint p-2.5 text-sm font-semibold text-accent-deep"
+          >
+            {errors.rawInput}
+          </p>
+        )}
+        <div id="raw-input-hint" className="cc-note cc-note--calm mt-2.5">
           <span className="cc-note-ic">
             <Icon name="check" size={16} />
           </span>
@@ -265,75 +325,15 @@ export default function NewEventPage() {
         </div>
       </div>
 
-      <div className="space-y-2.5">
-        <label className="cc-field-label">Attachments</label>
-        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-          <label className="cc-btn cc-btn--secondary w-full cursor-pointer">
-            <input
-              type="file"
-              accept="image/*"
-              capture="environment"
-              className="hidden"
-              onChange={(e) => handleFileChange(e, AttachmentKind.photo)}
-            />
-            <Icon name="phone" size={17} />
-            Photo
-          </label>
-          <label className="cc-btn cc-btn--secondary w-full cursor-pointer">
-            <input
-              type="file"
-              accept="image/*"
-              capture="user"
-              className="hidden"
-              onChange={(e) => handleFileChange(e, AttachmentKind.photo)}
-            />
-            <Icon name="phone" size={17} />
-            Selfie
-          </label>
-          <button
-            type="button"
-            onClick={recording ? stopRecording : startRecording}
-            className="cc-btn col-span-2 w-full sm:col-span-1"
-            style={
-              recording
-                ? { background: 'var(--accent-tint)', color: 'var(--accent-deep)', boxShadow: 'none' }
-                : { background: 'var(--card)', color: 'var(--ink)', boxShadow: 'inset 0 0 0 1px var(--line)' }
-            }
-          >
-            <Icon name="bell" size={17} />
-            {recording ? 'Stop' : 'Voice memo'}
-          </button>
-        </div>
-
-        {attachmentError && (
-          <p role="alert" className="rounded-[var(--r-lg)] bg-alert-tint p-2.5 text-sm text-accent-deep">
-            {attachmentError}
-          </p>
-        )}
-
-        {attachments.length > 0 && (
-          <ul className="space-y-1.5">
-            {attachments.map((a) => (
-              <li
-                key={a.id}
-                className="flex items-center justify-between gap-2 rounded-[var(--r-lg)] bg-card-sunk p-2.5 text-sm text-ink-soft"
-              >
-                <span className="flex items-center gap-1.5">
-                  <Icon name={a.kind === 'audio' ? 'bell' : 'phone'} size={14} className="text-ink-faint" />
-                  {a.file.name} ({Math.round(a.file.size / 1024)} KB)
-                </span>
-                <button
-                  type="button"
-                  onClick={() => removeAttachment(a.id)}
-                  className="font-bold text-ink-faint hover:text-accent-deep"
-                >
-                  Remove
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      <AttachmentFields
+        labelId="attachments-label"
+        attachments={attachments}
+        error={attachmentError}
+        recording={recording}
+        onPick={handleFileChange}
+        onToggleRecording={toggleRecording}
+        onRemove={removeAttachment}
+      />
 
       <button type="submit" disabled={loading} className="cc-btn cc-btn--primary cc-btn--block cc-btn--xl">
         <Icon name="send" size={18} />

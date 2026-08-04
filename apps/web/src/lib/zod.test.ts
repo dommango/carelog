@@ -1,5 +1,69 @@
 import { describe, it, expect } from 'vitest';
-import { createPatientSchema } from '@/lib/zod';
+import { randomUUID } from 'crypto';
+import { createEventSchema, createPatientSchema } from '@/lib/zod';
+
+describe('createEventSchema', () => {
+  const base = {
+    clientId: 'client-1',
+    idempotencyKey: randomUUID(),
+    occurredAt: '2026-08-04T09:30:00.000Z',
+  };
+
+  const audioAttachment = {
+    id: randomUUID(),
+    kind: 'audio' as const,
+    mimeType: 'audio/webm',
+    sizeBytes: 4096,
+  };
+
+  it('accepts text with no attachments', () => {
+    const parsed = createEventSchema.parse({ ...base, rawInput: 'Gave the nebulizer' });
+    expect(parsed.rawInput).toBe('Gave the nebulizer');
+    expect(parsed.attachments).toEqual([]);
+  });
+
+  // Voice-only and photo-only logging.
+  it('accepts an attachment with no text', () => {
+    const parsed = createEventSchema.parse({ ...base, attachments: [audioAttachment] });
+    expect(parsed.rawInput).toBeUndefined();
+    expect(parsed.attachments).toHaveLength(1);
+  });
+
+  it('accepts an attachment with empty or whitespace-only text', () => {
+    expect(
+      createEventSchema.parse({ ...base, rawInput: '', attachments: [audioAttachment] }).rawInput
+    ).toBeUndefined();
+    expect(
+      createEventSchema.parse({ ...base, rawInput: '   ', attachments: [audioAttachment] }).rawInput
+    ).toBeUndefined();
+  });
+
+  it('rejects an event with neither text nor attachments', () => {
+    expect(createEventSchema.safeParse(base).success).toBe(false);
+    expect(createEventSchema.safeParse({ ...base, rawInput: '' }).success).toBe(false);
+    expect(createEventSchema.safeParse({ ...base, rawInput: '  \n ' }).success).toBe(false);
+    expect(createEventSchema.safeParse({ ...base, attachments: [] }).success).toBe(false);
+  });
+
+  it('reports the empty-event problem against the rawInput field', () => {
+    const result = createEventSchema.safeParse(base);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.flatten().fieldErrors.rawInput).toBeDefined();
+    }
+  });
+
+  it('trims surrounding whitespace off the caregiver text', () => {
+    expect(createEventSchema.parse({ ...base, rawInput: '  Lunch eaten  ' }).rawInput).toBe(
+      'Lunch eaten'
+    );
+  });
+
+  it('still caps attachments at five', () => {
+    const many = Array.from({ length: 6 }, () => ({ ...audioAttachment, id: randomUUID() }));
+    expect(createEventSchema.safeParse({ ...base, attachments: many }).success).toBe(false);
+  });
+});
 
 describe('createPatientSchema', () => {
   it('accepts a name on its own', () => {

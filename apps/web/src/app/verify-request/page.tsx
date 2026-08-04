@@ -29,8 +29,8 @@ export default function VerifyRequestPage() {
           </span>
         </div>
 
-        <p className="mt-6 text-center text-[12.5px] font-bold text-ink-faint">
-          <Link href="/login" className="text-accent-deep hover:text-accent">
+        <p className="mt-6 text-center text-[13px] font-bold text-ink-faint">
+          <Link href="/login" className="text-accent-deep hover:underline">
             Back to sign in
           </Link>
         </p>

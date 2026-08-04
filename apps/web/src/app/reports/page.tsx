@@ -9,10 +9,7 @@ import {
   getTimeline,
 } from '@/lib/services/reports';
 import ReportsDashboard from '@/components/ReportsDashboard';
-
-function toDateInput(date: Date) {
-  return date.toISOString().slice(0, 10);
-}
+import { toDateInputValue } from '@/components/reports/report-dates';
 
 export default async function ReportsPage() {
   const session = await auth();
@@ -25,9 +22,12 @@ export default async function ReportsPage() {
     redirect('/onboarding');
   }
 
-  const end = new Date();
-  const start = new Date();
-  start.setDate(start.getDate() - 6);
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const day = now.getDate();
+  const start = new Date(year, month, day - 6);
+  const end = new Date(year, month, day, 23, 59, 59, 999);
 
   const query = {
     patientId: actor.assignment.patientId,
@@ -54,8 +54,8 @@ export default async function ReportsPage() {
   return (
     <ReportsDashboard
       patientId={actor.assignment.patientId}
-      initialStart={toDateInput(start)}
-      initialEnd={toDateInput(end)}
+      initialStart={toDateInputValue(start)}
+      initialEnd={toDateInputValue(end)}
       initialData={initialData}
     />
   );

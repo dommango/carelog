@@ -51,7 +51,7 @@ export function OnboardingChecklist({ checklist }: { checklist: Checklist }) {
                 Finish setting up
               </span>
               {nextStep && (
-                <span className="block truncate text-[12.5px] font-semibold text-ink-soft">
+                <span className="block truncate text-[13px] font-semibold text-ink-soft">
                   Next: {nextStep.label}
                 </span>
               )}
@@ -108,7 +108,7 @@ export function OnboardingChecklist({ checklist }: { checklist: Checklist }) {
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block text-[14px] font-bold text-ink">{item.label}</span>
-                  <span className="block text-[12.5px] font-semibold text-ink-soft">
+                  <span className="block text-[13px] font-semibold text-ink-soft">
                     {item.hint}
                   </span>
                 </span>

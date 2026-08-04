@@ -1,20 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  Legend,
-} from 'recharts';
 import Link from 'next/link';
-import { themeColors } from '@/lib/theme-colors';
+import type { MealHydrationDay, MoodPoint } from '@/lib/services/reports';
+import MoodTrendChart from './reports/MoodTrendChart';
+import MealHydrationChart from './reports/MealHydrationChart';
+import { formatDayKey, formatReportDate, parseDayKey } from './reports/report-dates';
 
 type AdherenceRow = {
   scheduleId: string;
@@ -24,20 +15,6 @@ type AdherenceRow = {
   onTime: number;
   missed: number;
   onTimePercent: number;
-};
-
-type MoodPoint = {
-  date: string;
-  averageMood: number | null;
-  count: number;
-  incidents: number;
-  painFlags: number;
-};
-
-type MealHydrationDay = {
-  date: string;
-  meals: number;
-  hydration: number;
 };
 
 type IncidentItem = {
@@ -63,15 +40,24 @@ type SummaryData = {
   }>;
 };
 
-function formatDateLocal(iso: string) {
-  return new Date(iso).toLocaleDateString();
+const LOAD_ERROR =
+  'Couldn’t load the report. Check your connection and try Update again.';
+
+function rangeBounds(start: string, end: string) {
+  const startDate = parseDayKey(start) ?? new Date(start);
+  const endDate = parseDayKey(end) ?? new Date(end);
+  const endOfDay = new Date(endDate);
+  endOfDay.setHours(23, 59, 59, 999);
+  return { start: startDate, end: endOfDay };
 }
 
 function buildQuery(patientId: string | undefined, start: string, end: string) {
+  const bounds = rangeBounds(start, end);
   const params = new URLSearchParams();
   if (patientId) params.set('patientId', patientId);
-  params.set('start', new Date(start).toISOString());
-  params.set('end', new Date(end).toISOString());
+  params.set('start', bounds.start.toISOString());
+  params.set('end', bounds.end.toISOString());
+  params.set('tzOffsetMinutes', String(new Date().getTimezoneOffset()));
   return params.toString();
 }
 
@@ -91,17 +77,19 @@ export default function ReportsDashboard({
   const [data, setData] = useState<SummaryData>(initialData);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [shownRange, setShownRange] = useState({ start: initialStart, end: initialEnd });
 
   async function loadData() {
     setLoading(true);
     setError(null);
     try {
       const res = await fetch(`/api/reports/summary?${buildQuery(patientId, start, end)}`);
-      if (!res.ok) throw new Error('Failed to load reports');
+      if (!res.ok) throw new Error(LOAD_ERROR);
       const json = (await res.json()) as SummaryData;
       setData(json);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
+      setShownRange({ start, end });
+    } catch {
+      setError(LOAD_ERROR);
     } finally {
       setLoading(false);
     }
@@ -111,36 +99,54 @@ export default function ReportsDashboard({
     return `/api/reports/export?format=${format}&${buildQuery(patientId, start, end)}`;
   }
 
-  const moodData = data.mood.map((d) => ({
-    ...d,
-    averageMood: d.averageMood ?? 0,
-  }));
+  const status = loading
+    ? 'Updating the report…'
+    : `Showing ${formatDayKey(shownRange.start)} to ${formatDayKey(shownRange.end)}.`;
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-4">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4">
         <div>
           <h1 className="cc-serif text-[22px]">Reports</h1>
-          <p className="text-sm text-ink-faint">Aggregates include only confirmed events.</p>
+          <p className="text-sm text-ink-soft">Aggregates include only confirmed events.</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2.5">
-          <input
-            type="date"
-            value={start}
-            onChange={(e) => setStart(e.target.value)}
-            className="cc-input"
-            style={{ padding: '8px 12px', minWidth: 0 }}
-          />
-          <span className="text-ink-faint">to</span>
-          <input
-            type="date"
-            value={end}
-            onChange={(e) => setEnd(e.target.value)}
-            className="cc-input"
-            style={{ padding: '8px 12px', minWidth: 0 }}
-          />
-          <button onClick={loadData} disabled={loading} className="cc-btn cc-btn--primary cc-btn--sm">
-            {loading ? 'Loading…' : 'Update'}
+
+        <div className="flex flex-wrap items-end gap-3">
+          <div>
+            <label htmlFor="report-start" className="cc-field-label">
+              From
+            </label>
+            <input
+              id="report-start"
+              type="date"
+              value={start}
+              max={end}
+              onChange={(e) => setStart(e.target.value)}
+              className="cc-input"
+              style={{ minWidth: 0 }}
+            />
+          </div>
+          <div>
+            <label htmlFor="report-end" className="cc-field-label">
+              To
+            </label>
+            <input
+              id="report-end"
+              type="date"
+              value={end}
+              min={start}
+              onChange={(e) => setEnd(e.target.value)}
+              className="cc-input"
+              style={{ minWidth: 0 }}
+            />
+          </div>
+          <button
+            onClick={loadData}
+            disabled={loading}
+            aria-busy={loading}
+            className="cc-btn cc-btn--primary cc-btn--sm"
+          >
+            {loading ? 'Updating…' : 'Update'}
           </button>
           <a href={downloadUrl('csv')} className="cc-btn cc-btn--secondary cc-btn--sm">
             Download CSV
@@ -149,10 +155,23 @@ export default function ReportsDashboard({
             Download PDF
           </a>
         </div>
+
+        <p role="status" className="text-sm text-ink-soft">
+          {status}
+        </p>
       </div>
 
       {error && (
-        <div className="cc-card" style={{ background: 'var(--alert-tint)', border: '1px solid var(--accent-tint)', boxShadow: 'none', color: 'var(--accent-deep)' }}>
+        <div
+          role="alert"
+          className="cc-card"
+          style={{
+            background: 'var(--alert-tint)',
+            border: '1px solid var(--accent-tint)',
+            boxShadow: 'none',
+            color: 'var(--accent-deep)',
+          }}
+        >
           {error}
         </div>
       )}
@@ -160,14 +179,16 @@ export default function ReportsDashboard({
       <section className="cc-card">
         <h2 className="cc-eyebrow mb-3">Adherence</h2>
         {data.adherence.length === 0 ? (
-          <p className="text-ink-faint">No active schedules in this range.</p>
+          <p className="text-ink-soft">No active schedules in this range.</p>
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {data.adherence.map((row) => (
               <div key={row.scheduleId} className="cc-card cc-card--sunk">
                 <div className="text-sm font-bold text-ink">{row.scheduleName}</div>
-                <div className="cc-serif cc-mono mt-1.5 text-2xl text-accent-deep">{row.onTimePercent}%</div>
-                <div className="text-sm text-ink-faint">on time</div>
+                <div className="cc-serif cc-mono mt-1.5 text-2xl text-accent-deep">
+                  {row.onTimePercent}%
+                </div>
+                <div className="text-sm text-ink-soft">on time</div>
                 <div className="mt-1.5 text-sm text-ink-soft">
                   {row.logged} / {row.scheduled} logged · {row.missed} missed
                 </div>
@@ -177,68 +198,19 @@ export default function ReportsDashboard({
         )}
       </section>
 
-      <section className="cc-card">
-        <h2 className="cc-eyebrow mb-3">Mood trend</h2>
-        <div className="h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={moodData}>
-              <CartesianGrid strokeDasharray="3 3" stroke={themeColors.line} />
-              <XAxis dataKey="date" stroke={themeColors.inkFaint} tick={{ fill: themeColors.inkFaint, fontSize: 12 }} />
-              <YAxis domain={[1, 5]} allowDecimals stroke={themeColors.inkFaint} tick={{ fill: themeColors.inkFaint, fontSize: 12 }} />
-              <Tooltip
-                contentStyle={{
-                  background: themeColors.card,
-                  border: `1px solid ${themeColors.line}`,
-                  borderRadius: 10,
-                  fontFamily: 'Mulish, sans-serif',
-                }}
-              />
-              <Line
-                type="monotone"
-                dataKey="averageMood"
-                stroke={themeColors.accent}
-                strokeWidth={2}
-                dot={{ r: 4, fill: themeColors.accent }}
-                connectNulls
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      </section>
+      <MoodTrendChart mood={data.mood} />
 
-      <section className="cc-card">
-        <h2 className="cc-eyebrow mb-3">Meals &amp; hydration</h2>
-        <div className="h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data.mealHydration}>
-              <CartesianGrid strokeDasharray="3 3" stroke={themeColors.line} />
-              <XAxis dataKey="date" stroke={themeColors.inkFaint} tick={{ fill: themeColors.inkFaint, fontSize: 12 }} />
-              <YAxis allowDecimals={false} stroke={themeColors.inkFaint} tick={{ fill: themeColors.inkFaint, fontSize: 12 }} />
-              <Tooltip
-                contentStyle={{
-                  background: themeColors.card,
-                  border: `1px solid ${themeColors.line}`,
-                  borderRadius: 10,
-                  fontFamily: 'Mulish, sans-serif',
-                }}
-              />
-              <Legend wrapperStyle={{ fontSize: 12.5, fontWeight: 700, color: themeColors.inkSoft }} />
-              <Bar dataKey="meals" fill={themeColors.tier2} radius={[4, 4, 0, 0]} />
-              <Bar dataKey="hydration" fill={themeColors.caregiver} radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </section>
+      <MealHydrationChart days={data.mealHydration} />
 
       <section className="cc-card">
         <h2 className="cc-eyebrow mb-3">Incidents</h2>
         {data.incidents.length === 0 ? (
-          <p className="text-ink-faint">No incidents recorded.</p>
+          <p className="text-ink-soft">No incidents recorded.</p>
         ) : (
           <ul className="divide-y divide-line">
             {data.incidents.map((item) => (
               <li key={item.id} className="py-2.5 text-sm text-ink">
-                <span className="text-ink-faint">{formatDateLocal(item.occurredAt)}</span>
+                <span className="text-ink-soft">{formatReportDate(item.occurredAt)}</span>
                 {' · '}
                 <span className="font-bold">{item.category ?? 'note'}</span>
                 {' · '}
@@ -252,14 +224,14 @@ export default function ReportsDashboard({
       <section className="cc-card">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="cc-eyebrow">Event log</h2>
-          <Link href="/" className="text-sm font-bold text-accent-deep hover:text-accent">
+          <Link href="/" className="text-sm font-bold text-accent-deep hover:underline">
             View timeline
           </Link>
         </div>
         <ul className="divide-y divide-line">
           {data.timeline.slice(0, 20).map((event) => (
             <li key={event.id} className="py-2.5 text-sm text-ink">
-              <span className="text-ink-faint">{formatDateLocal(event.occurredAt)}</span>
+              <span className="text-ink-soft">{formatReportDate(event.occurredAt)}</span>
               {' · '}
               <span className="font-bold">{event.category ?? 'note'}</span>
               {' · '}

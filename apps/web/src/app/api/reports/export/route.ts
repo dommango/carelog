@@ -76,8 +76,9 @@ export async function GET(request: NextRequest) {
     const data = await getDoctorVisitExport(actor, parsed.data);
 
     if (format === 'pdf') {
+      const locale = request.headers.get('accept-language')?.split(',')[0]?.trim() || undefined;
       const buffer = await renderToBuffer(
-        React.createElement(DoctorVisitReport, { data }) as unknown as Parameters<typeof renderToBuffer>[0]
+        React.createElement(DoctorVisitReport, { data, locale }) as unknown as Parameters<typeof renderToBuffer>[0]
       );
       return new Response(new Uint8Array(buffer), {
         headers: {
