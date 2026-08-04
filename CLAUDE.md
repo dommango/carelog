@@ -2,7 +2,7 @@
 
 Guidance for Claude Code working in this repository.
 
-CareLog is a caregiver activity-logging PWA: a small team logs the daily care of one senior patient (nebulizer treatments, meds, meals, mood, notes) via text/voice/photo, and an async AI pipeline turns messy input into structured records that feed reminders, adherence tracking, and doctor-visit reports. Greenfield app (deliberately **not** a CareCover extension). Full design: `docs/architecture.md`. Current branch `phase-5-reporting` — Phase 5 (reporting: adherence rollups, mood charts, PDF/CSV export) is the active work.
+CareLog is a caregiver activity-logging PWA: a small team logs the daily care of one senior patient (nebulizer treatments, meds, meals, mood, notes) via text/voice/photo, and an async AI pipeline turns messy input into structured records that feed reminders, adherence tracking, and doctor-visit reports. Greenfield app (deliberately not an extension of a prior in-house app). Full design: `docs/architecture.md` (historical; where it and the code disagree, the code wins). All five build phases from the design doc have shipped.
 
 ## Layout (pnpm monorepo)
 
@@ -30,11 +30,12 @@ Run from repo root (each proxies to a workspace via `pnpm --filter`):
 ```bash
 pnpm dev                 # web dev server on :3000
 pnpm build               # build web
-pnpm test                # unit/integration tests (vitest): web, then @carelog/ai, then worker
+pnpm test                # unit/integration tests (vitest): web, @carelog/ai, worker, @carelog/storage
 pnpm worker:dev          # worker (tsx watch) ; worker:build ; worker:start
 pnpm db:generate         # prisma generate
-pnpm db:migrate          # prisma migrate dev
-pnpm db:push             # prisma db push (no migration)
+pnpm db:migrate          # prisma migrate dev (migrations are committed; CI checks drift)
+pnpm db:deploy           # prisma migrate deploy (applies committed migrations)
+pnpm db:push             # prisma db push (no migration — avoid; see db:migrate)
 pnpm db:studio           # prisma studio
 pnpm db:seed             # seed via apps/web/src/scripts/seed.ts
 ```
@@ -47,7 +48,7 @@ Postgres, local `DATABASE_URL=postgresql://carelog:carelog@localhost:5436/carelo
 
 ## Env
 
-No `.env.example` is committed — vars live in `apps/web/.env.local`, `apps/worker/.env`, `packages/db/.env`. Names in use: `DATABASE_URL`, `AUTH_SECRET`, `AUTH_URL`, `AUTH_GOOGLE_ID`/`AUTH_GOOGLE_SECRET`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `STORAGE_ROOT`, `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/`VAPID_SUBJECT`, `TWILIO_ACCOUNT_SID`/`TWILIO_AUTH_TOKEN`/`TWILIO_PHONE_NUMBER`. Google sign-in is env-gated (`apps/web/src/lib/env.ts`) — the app boots fine with those two unset, just without the Google provider. `AUTH_SECRET`/`AUTH_URL` are the canonical next-auth v5 names; the legacy `NEXTAUTH_SECRET`/`NEXTAUTH_URL` are aliased by the library and still work, but new code/docs should use the `AUTH_*` names. `trustHost: true` is set in `auth.ts` for Railway's proxy, so `AUTH_URL` itself is optional — Auth.js infers the origin from the request.
+`env.example` (root, deliberately no leading dot) documents every var; real values live in `apps/web/.env.local`, `apps/worker/.env`, `packages/db/.env`. Names in use: `DATABASE_URL`, `AUTH_SECRET`, `AUTH_URL`, `AUTH_GOOGLE_ID`/`AUTH_GOOGLE_SECRET`, `EMAIL_SERVER`/`EMAIL_FROM`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `STORAGE_ROOT`, `STORAGE_BASE_URL`, `APP_BASE_URL`, `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/`VAPID_SUBJECT`, `TWILIO_ACCOUNT_SID`/`TWILIO_AUTH_TOKEN`/`TWILIO_PHONE_NUMBER`, `NOTION_API_KEY`/`NOTION_FEEDBACK_DB_ID` (feedback mirror), `CRON_SECRET` (reconciler route), `TEST_LOGIN_SECRET` (test-login gate; refused outright in prod), `ALLOWED_SIGNIN_EMAILS` (unset = open sign-up — set on public deployments). Google sign-in is env-gated (`apps/web/src/lib/env.ts`) — the app boots fine with those two unset, just without the Google provider. `AUTH_SECRET`/`AUTH_URL` are the canonical next-auth v5 names; the legacy `NEXTAUTH_SECRET`/`NEXTAUTH_URL` are aliased by the library and still work, but new code/docs should use the `AUTH_*` names. `trustHost: true` is set in `auth.ts` for Railway's proxy, so `AUTH_URL` itself is optional — Auth.js infers the origin from the request.
 
 ## Architecture notes
 
@@ -58,4 +59,4 @@ No `.env.example` is committed — vars live in `apps/web/.env.local`, `apps/wor
 
 ## Deploy
 
-Architecture doc targets **Railway** (separate `web` + `worker` services + managed Postgres, media on R2/S3). No `railway.json`, `Dockerfile`, or CI config is committed yet — deploy is not wired up.
+Architecture doc targets **Railway** (separate `web` + `worker` services + managed Postgres). Committed: `Dockerfile` + `docker-start.sh` (web image; runs `migrate deploy` on boot) and CI at `.github/workflows/ci.yml` (typecheck, tests with a Postgres service container, migration-drift check, Playwright). Not committed: `railway.json`, `docker-compose`. Media is on the local-filesystem store (`STORAGE_ROOT`); S3/R2 not yet wired.

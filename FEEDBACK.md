@@ -1,20 +1,18 @@
 # Feedback → Notion Contract
 
-This app mirrors in-app feedback/bug reports into the shared central Notion database
-**"📥 App Feedback"**. This document is the canonical contract that both the app code and
-any triage agent must follow. Keep it in sync across all consuming apps.
+This app can mirror in-app feedback/bug reports into a central Notion database
+(e.g. **"📥 App Feedback"**). This document is the canonical contract that both the app
+code and any triage agent must follow. Keep it in sync across all consuming apps.
 
-- **Central database:** `📥 App Feedback`
-- **Database ID:** `c153f1e7-b65d-49d2-a2d8-5e57d1f22b70`
-- **Data source:** `collection://5ccf696e-e7bf-42ba-ae23-5e12d4d35b2f`
-- **Env var:** `NOTION_FEEDBACK_DB_ID` (this ID in dev; prod repointed during supervised cutover)
+- **Central database:** a Notion database you create with the schema below
+- **Env var:** `NOTION_FEEDBACK_DB_ID` — that database's ID
 
 ## Schema
 
 | Property    | Type             | Notes                                                    |
 | ----------- | ---------------- | -------------------------------------------------------- |
 | Title       | title            | `{emoji} {title}` — 🐛 Bug / 💬 Feedback / ✨ Request    |
-| App         | select           | SousIQ, HessFest, CareCover, Arnie, CareLog (one per app) |
+| App         | select           | one option per consuming app (e.g. `CareLog`)            |
 | Type        | select           | Bug, Feedback, Request                                   |
 | Status      | select           | New, Triaged, In progress, Done, Won't fix, Duplicate    |
 | Priority    | select           | Critical, High, Medium, Low                              |
@@ -73,9 +71,9 @@ every `pages.create` returns **404**. 401 = bad token; 400 = schema/property mis
 `notionEnabled` in `apps/web/src/lib/env.ts` gates the whole sync):
 
 - `NOTION_API_KEY` — Notion integration token (the integration must be connected to the
-  central "📥 App Feedback" database — see above).
-- `NOTION_FEEDBACK_DB_ID` — the central database ID above (`c153f1e7-…`).
-- `APP_BASE_URL` — the externally reachable origin (e.g. `https://carelog.up.railway.app`).
+  central feedback database — see above).
+- `NOTION_FEEDBACK_DB_ID` — the central database's ID.
+- `APP_BASE_URL` — the externally reachable origin (e.g. `https://carelog.example.com`).
   Notion's servers fetch screenshot URLs built from it; when unset, cards sync **without**
   images rather than carrying URLs Notion cannot resolve.
 - `CRON_SECRET` — shared secret for the reconciler route. Must match on the web service
@@ -86,8 +84,8 @@ Set these in `apps/web/.env.local` (web) and `apps/worker/.env` (`APP_BASE_URL` 
 
 **Data model:** `model Feedback` in `packages/db/prisma/schema.prisma` → table `feedback`,
 with outbox columns `notion_page_id`, `notion_synced_at` (NULL = unsynced, the outbox
-flag), `notion_sync_attempts`, `notion_last_error`. Apply with `pnpm db:push` (this repo
-does not commit a Prisma migrations directory). No history fencing was needed — the table
+flag), `notion_sync_attempts`, `notion_last_error`. Apply with `pnpm db:migrate` (this
+repo commits its Prisma migrations directory). No history fencing was needed — the table
 is new, so there are no pre-existing rows for the reconciler to sweep.
 
 **Submit path:** `POST /api/feedback` validates with zod, rate-limits, inserts the row and

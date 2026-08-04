@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { buildFeedbackNotionPayload } from '@/lib/notion/notion-payload';
 import type { FeedbackPayloadInput } from '@/lib/notion/notion-payload';
 
-const DB_ID = 'c153f1e7-b65d-49d2-a2d8-5e57d1f22b70';
+const DB_ID = '00000000-0000-0000-0000-00000000feed';
 
 function input(overrides: Partial<FeedbackPayloadInput> = {}): FeedbackPayloadInput {
   return {
