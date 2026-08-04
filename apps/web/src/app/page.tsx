@@ -6,6 +6,7 @@ import { hasAnyEvent } from '@/lib/services/events';
 import { listAssignments } from '@/lib/services/invites';
 import { buildOnboardingChecklist, type OnboardingChecklist as Checklist } from '@/lib/onboarding-checklist';
 import { OnboardingChecklist } from '@/components/OnboardingChecklist';
+import { RemindersToggle } from '@/components/RemindersToggle';
 import Timeline from '@/components/Timeline';
 import Link from 'next/link';
 
@@ -89,6 +90,8 @@ export default async function HomePage() {
           </div>
         </section>
       )}
+
+      <RemindersToggle />
 
       <Timeline />
     </div>

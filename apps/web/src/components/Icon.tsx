@@ -131,6 +131,23 @@ const PATHS: Record<string, { strokeWidth?: number; children: React.ReactNode }>
       </>
     ),
   },
+  camera: {
+    children: (
+      <>
+        <path d="M4 8.5h2.8l1.7-2.5h7l1.7 2.5H20A1.5 1.5 0 0 1 21.5 10v8a1.5 1.5 0 0 1-1.5 1.5H4A1.5 1.5 0 0 1 2.5 18v-8A1.5 1.5 0 0 1 4 8.5Z" />
+        <circle cx="12" cy="13.8" r="3.4" />
+      </>
+    ),
+  },
+  mic: {
+    children: (
+      <>
+        <rect x="9" y="2.5" width="6" height="11" rx="3" />
+        <path d="M5.5 11.5a6.5 6.5 0 0 0 13 0" />
+        <path d="M12 18v3M9 21h6" />
+      </>
+    ),
+  },
   gear: {
     children: (
       <>

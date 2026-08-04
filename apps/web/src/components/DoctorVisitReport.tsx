@@ -11,6 +11,8 @@ import {
 } from '@react-pdf/renderer';
 import { DoctorVisitExport } from '@/lib/services/reports';
 import { themeColors } from '@/lib/theme-colors';
+import { formatDayKey, formatReportDate } from './reports/report-dates';
+import { summarizeMood } from './reports/mood-summary';
 
 const styles = StyleSheet.create({
   page: { padding: 32, fontSize: 10, fontFamily: 'Helvetica', backgroundColor: themeColors.sand, color: themeColors.ink },
@@ -23,15 +25,23 @@ const styles = StyleSheet.create({
   smallCell: { width: 60 },
   muted: { color: themeColors.inkSoft },
   incident: { marginBottom: 4 },
+  moodSummary: { marginTop: 8, lineHeight: 1.5 },
+  moodDays: { marginTop: 4, color: themeColors.inkSoft, lineHeight: 1.5 },
   caveat: { marginTop: 16, fontSize: 9, color: themeColors.inkFaint, fontFamily: 'Helvetica-Oblique' },
 });
 
-function formatDate(date: Date) {
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-}
-
-export default function DoctorVisitReport({ data }: { data: DoctorVisitExport }) {
+export default function DoctorVisitReport({
+  data,
+  locale,
+}: {
+  data: DoctorVisitExport;
+  locale?: string;
+}) {
   const { patient, range, adherence, mood, incidents, timeline, needsReviewCount } = data;
+
+  const formatDate = (date: Date) => formatReportDate(date, locale);
+  const formatDay = (key: string) => formatDayKey(key, locale);
+  const moodSummary = summarizeMood(mood);
 
   // Build a simple mood line chart.
   const width = 480;
@@ -89,34 +99,52 @@ export default function DoctorVisitReport({ data }: { data: DoctorVisitExport })
           </View>
         ))}
 
-        <Text style={styles.sectionTitle}>Mood Trend</Text>
+        <Text style={styles.sectionTitle}>Mood Trend (1 = worst, 5 = best)</Text>
         {mood.length > 0 && pointsWithMood.length > 0 ? (
-          <Svg width={width} height={height}>
-            <G>
-              <Line
-                x1={padding}
-                y1={height - padding}
-                x2={width - padding}
-                y2={height - padding}
-                stroke={themeColors.line}
-                strokeWidth={1}
-              />
-              <Line
-                x1={padding}
-                y1={padding}
-                x2={padding}
-                y2={height - padding}
-                stroke={themeColors.line}
-                strokeWidth={1}
-              />
-              <Polyline
-                points={polylinePoints}
-                fill="none"
-                stroke={themeColors.accent}
-                strokeWidth={2}
-              />
-            </G>
-          </Svg>
+          <>
+            <Svg width={width} height={height}>
+              <G>
+                <Line
+                  x1={padding}
+                  y1={height - padding}
+                  x2={width - padding}
+                  y2={height - padding}
+                  stroke={themeColors.line}
+                  strokeWidth={1}
+                />
+                <Line
+                  x1={padding}
+                  y1={padding}
+                  x2={padding}
+                  y2={height - padding}
+                  stroke={themeColors.line}
+                  strokeWidth={1}
+                />
+                <Polyline
+                  points={polylinePoints}
+                  fill="none"
+                  stroke={themeColors.accent}
+                  strokeWidth={2}
+                />
+              </G>
+            </Svg>
+            <Text style={styles.moodSummary}>
+              Average {moodSummary.average} out of 5 across {moodSummary.daysWithData} day
+              {moodSummary.daysWithData === 1 ? '' : 's'} ({moodSummary.totalEntries} entries).
+              Lowest {moodSummary.lowest!.value} on {formatDay(moodSummary.lowest!.date)}.
+              Highest {moodSummary.highest!.value} on {formatDay(moodSummary.highest!.date)}.
+            </Text>
+            <Text style={styles.moodDays}>
+              {mood
+                .map(
+                  (point) =>
+                    `${formatDay(point.date)}: ${
+                      point.averageMood === null ? 'not recorded' : point.averageMood
+                    }`
+                )
+                .join(' · ')}
+            </Text>
+          </>
         ) : (
           <Text style={styles.muted}>No mood data for this period.</Text>
         )}

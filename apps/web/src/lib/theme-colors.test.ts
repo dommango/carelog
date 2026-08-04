@@ -11,6 +11,7 @@ const TOKEN_VARS: Record<keyof typeof themeColors, string> = {
   inkFaint: '--ink-faint',
   line: '--line',
   accent: '--accent',
+  accentStrong: '--accent-strong',
   accentDeep: '--accent-deep',
   caregiver: '--caregiver',
   tier2: '--tier-2',

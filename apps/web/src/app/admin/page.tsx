@@ -1,19 +1,18 @@
 import { redirect } from 'next/navigation';
-import { revalidatePath } from 'next/cache';
+import { EventCategory } from '@carelog/db';
 import { auth } from '@/auth';
 import { getActor } from '@/lib/policy';
 import { listPatients } from '@/lib/services/patients';
-import { createTemplate } from '@/lib/services/templates';
 import { listTemplateUsage } from '@/lib/services/reports';
-import { inviteUser, listAssignments } from '@/lib/services/invites';
-import { listSchedules, createSchedule, deleteSchedule } from '@/lib/services/schedules';
-import { createScheduleSchema, createTemplateSchema, inviteSchema } from '@/lib/zod';
+import { listAssignments } from '@/lib/services/invites';
+import { listSchedules } from '@/lib/services/schedules';
 import { describeRrule } from '@/lib/rrule-describe';
 import { categoryMeta } from '@/lib/categoryTheme';
 import { Icon } from '@/components/Icon';
 import { InviteForm } from '@/components/admin/InviteForm';
 import { TemplateForm } from '@/components/admin/TemplateForm';
 import { ScheduleForm } from '@/components/admin/ScheduleForm';
+import { ScheduleRow } from '@/components/admin/ScheduleRow';
 
 export default async function AdminPage() {
   const session = await auth();
@@ -36,95 +35,14 @@ export default async function AdminPage() {
 
   const caregivers = await listAssignments(adminActor, patient.id);
 
-  async function inviteAction(formData: FormData) {
-    'use server';
-    const parsed = inviteSchema.safeParse(Object.fromEntries(formData));
-    if (!parsed.success) return;
-    await inviteUser(adminActor, parsed.data);
-    revalidatePath('/admin');
-  }
-
-  async function scheduleAction(formData: FormData) {
-    'use server';
-
-    const name = formData.get('name') as string;
-    const recurrence = formData.get('recurrence') as 'daily' | 'weekly' | 'hourly';
-    const time = formData.get('time') as string;
-    const interval = parseInt(formData.get('interval') as string, 10);
-    const days = formData.getAll('days') as string[];
-    const windowMinutes = parseInt(formData.get('windowMinutes') as string, 10);
-    const remindOffsets = (formData.get('remindOffsets') as string)
-      .split(',')
-      .map((s) => parseInt(s.trim(), 10))
-      .filter((n) => !isNaN(n));
-    const templateId = (formData.get('templateId') as string) || undefined;
-    const escalationAfter = parseInt(formData.get('escalationAfter') as string, 10);
-    // Checkboxes over the real care team, so these are already user IDs.
-    const escalationNotify = (formData.getAll('escalationNotify') as string[]).filter(Boolean);
-
-    const [hour, minute] = time.split(':').map((s) => parseInt(s, 10));
-
-    let rrule = '';
-    if (recurrence === 'daily') {
-      rrule = `FREQ=DAILY;BYHOUR=${hour};BYMINUTE=${minute};BYSECOND=0`;
-    } else if (recurrence === 'weekly') {
-      const byday = days.length > 0 ? days.join(',') : 'MO';
-      rrule = `FREQ=WEEKLY;BYDAY=${byday};BYHOUR=${hour};BYMINUTE=${minute};BYSECOND=0`;
-    } else if (recurrence === 'hourly') {
-      rrule = `FREQ=HOURLY;INTERVAL=${interval || 1}`;
-    }
-
-    const escalation = escalationAfter > 0 && escalationNotify.length > 0
-      ? { afterMinutes: escalationAfter, notify: escalationNotify, channel: 'sms' as const }
-      : undefined;
-
-    const parsed = createScheduleSchema.safeParse({
-      patientId: patient.id,
-      name,
-      rrule,
-      windowMinutes,
-      remindOffsets,
-      templateId,
-      escalation,
-    });
-    if (!parsed.success) return;
-
-    await createSchedule(adminActor, parsed.data);
-    revalidatePath('/admin');
-  }
-
-  async function scheduleDeleteAction(formData: FormData) {
-    'use server';
-    const id = formData.get('id') as string;
-    if (!id) return;
-    await deleteSchedule(adminActor, id);
-    revalidatePath('/admin');
-  }
-
-  async function templateAction(formData: FormData) {
-    'use server';
-    const defaultsRaw = formData.get('defaults') as string;
-    let defaults: Record<string, unknown> = {};
-    try {
-      defaults = JSON.parse(defaultsRaw || '{}');
-    } catch {
-      return;
-    }
-
-    const parsed = createTemplateSchema.safeParse({
-      name: formData.get('name'),
-      category: formData.get('category'),
-      defaults,
-    });
-    if (!parsed.success) return;
-
-    await createTemplate(adminActor, parsed.data);
-    revalidatePath('/admin');
-  }
-
   const templateOptions = templates.map((t) => ({
     id: t.id,
     label: `${t.name} · ${categoryMeta(t.category).label}`,
+  }));
+
+  const categoryOptions = Object.values(EventCategory).map((category) => ({
+    id: category,
+    label: categoryMeta(category).label,
   }));
 
   const caregiverOptions = caregivers.map((assignment) => ({
@@ -204,7 +122,7 @@ export default async function AdminPage() {
 
       <section id="new-template" className="cc-card scroll-mt-4">
         <h2 className="cc-eyebrow mb-3">New template</h2>
-        <TemplateForm action={templateAction} />
+        <TemplateForm categories={categoryOptions} />
       </section>
 
       <section id="schedules" className="cc-card scroll-mt-4">

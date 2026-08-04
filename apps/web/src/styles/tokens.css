@@ -11,14 +11,15 @@
 
   /* Ink */
   --ink: #38332c;
-  --ink-soft: #6d655a;
-  --ink-faint: #9b9284;
+  --ink-soft: #5a534a;
+  --ink-faint: #6d665c;
   --line: #e9e0d1;
   --line-soft: #f1eadd;
 
   /* Accent (terracotta) */
   --accent: #d2694a;
-  --accent-hov: #bd5a3d;
+  --accent-strong: #a8543b;
+  --accent-hov: #b2593f;
   --accent-deep: #8f3d28;
   --accent-tint: #f8e7df;
   --accent-glow: rgba(210, 105, 74, 0.18);
@@ -32,7 +33,7 @@
   --await-ink: #8a5d1e;
   --gap: #b6ad9d;
   --gap-tint: #ece6da;
-  --gap-ink: #6f675b;
+  --gap-ink: #6d6559;
   --alert: #c2613f;
   --alert-tint: #f7e3da;
 
@@ -98,6 +99,7 @@
   --color-line-soft: var(--line-soft);
 
   --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
   --color-accent-hov: var(--accent-hov);
   --color-accent-deep: var(--accent-deep);
   --color-accent-tint: var(--accent-tint);

@@ -1,6 +1,6 @@
 import { localDb, getClientId, isOnline, type OutboxItem, type LocalEvent } from './localDb';
 
-const MAX_RETRIES = 5;
+export const MAX_RETRIES = 5;
 const BACKOFF_BASE_MS = 1000;
 
 let drainPromise: Promise<void> | null = null;
@@ -32,7 +32,8 @@ export async function drainOutbox(options?: { signal?: AbortSignal }): Promise<v
         await localDb.outbox.delete(item.id);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        const retries = item.retries + 1;
+        const networkFailure = isNetworkFailure(error);
+        const retries = networkFailure ? item.retries : item.retries + 1;
         await localDb.outbox.update(item.id, {
           retries,
           error: message,
@@ -40,6 +41,7 @@ export async function drainOutbox(options?: { signal?: AbortSignal }): Promise<v
         if (retries >= MAX_RETRIES) {
           console.error(`Outbox item ${item.id} exceeded max retries`, message);
         }
+        if (networkFailure && !isOnline()) break;
       }
     }
   })();
@@ -49,6 +51,37 @@ export async function drainOutbox(options?: { signal?: AbortSignal }): Promise<v
   } finally {
     drainPromise = null;
   }
+}
+
+// A request that never reached the server says nothing about whether the write
+// is acceptable, so it must not spend part of the item's retry budget.
+function isNetworkFailure(error: unknown): boolean {
+  return error instanceof TypeError || !isOnline();
+}
+
+export function isOutboxItemFailed(item: OutboxItem): boolean {
+  return item.retries >= MAX_RETRIES;
+}
+
+export async function listFailedOutboxItems(): Promise<OutboxItem[]> {
+  const items = await localDb.outbox.orderBy('createdAt').toArray();
+  return items.filter(isOutboxItemFailed);
+}
+
+export async function retryOutboxItem(id: string): Promise<void> {
+  await localDb.outbox.update(id, { retries: 0, error: null });
+  scheduleDrain();
+}
+
+// Items that failed part-way through get their budget back on a fresh
+// connection; exhausted ones stay put so a rejected write is not replayed at
+// the server forever without someone asking for it.
+export async function resetOutboxRetries(): Promise<void> {
+  const items = await localDb.outbox.toArray();
+  const stalled = items.filter((item) => item.retries > 0 && item.retries < MAX_RETRIES);
+  await Promise.all(
+    stalled.map((item) => localDb.outbox.update(item.id, { retries: 0, error: null }))
+  );
 }
 
 async function processOutboxItem(item: OutboxItem): Promise<void> {
@@ -238,7 +271,11 @@ export function scheduleDrain(): void {
 export function startOutboxDrain(): () => void {
   const abort = new AbortController();
 
-  const handleOnline = () => drainOutbox({ signal: abort.signal });
+  const handleOnline = () => {
+    resetOutboxRetries()
+      .then(() => drainOutbox({ signal: abort.signal }))
+      .catch((err) => console.error('Reconnect drain failed', err));
+  };
   const handleFocus = () => drainOutbox({ signal: abort.signal });
 
   window.addEventListener('online', handleOnline);

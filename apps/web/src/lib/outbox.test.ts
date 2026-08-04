@@ -4,7 +4,32 @@ config({ path: '.env.local' });
 import 'fake-indexeddb/auto';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { localDb } from './localDb';
-import { queueOutbox, drainOutbox, mergeServerEvent } from './outbox';
+import {
+  queueOutbox,
+  drainOutbox,
+  mergeServerEvent,
+  retryOutboxItem,
+  resetOutboxRetries,
+  listFailedOutboxItems,
+  MAX_RETRIES,
+} from './outbox';
+
+function eventPayload(eventId: string, idempotencyKey: string) {
+  return {
+    id: eventId,
+    type: 'event:create' as const,
+    payload: {
+      id: eventId,
+      rawInput: 'Test event',
+      occurredAt: new Date().toISOString(),
+      clientId: 'web',
+      idempotencyKey,
+      attachments: [],
+    },
+    idempotencyKey,
+    clientId: 'web',
+  };
+}
 
 describe('outbox drain', () => {
   beforeEach(async () => {
@@ -120,35 +145,108 @@ describe('outbox drain', () => {
     expect(await localDb.outbox.count()).toBe(0);
   });
 
-  it('retries network errors up to max retries', async () => {
+  it('spends retries on server rejections up to max retries', async () => {
     const eventId = 'evt-3';
     const idempotencyKey = 'idem-3';
 
-    global.fetch = vi.fn().mockRejectedValue(new Error('Network failure'));
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => ({ error: 'Server exploded' }),
+    } as unknown as Response);
 
-    await queueOutbox({
-      id: eventId,
-      type: 'event:create',
-      payload: {
-        id: eventId,
-        rawInput: 'Test event',
-        occurredAt: new Date().toISOString(),
-        clientId: 'web',
-        idempotencyKey,
-        attachments: [],
-      },
-      idempotencyKey,
-      clientId: 'web',
-    });
+    await queueOutbox(eventPayload(eventId, idempotencyKey));
 
     // Drain multiple times to exhaust retries.
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < MAX_RETRIES + 1; i++) {
       await drainOutbox();
     }
 
     const item = await localDb.outbox.get(eventId);
-    expect(item?.retries).toBe(5);
-    expect(item?.error).toContain('Network failure');
+    expect(item?.retries).toBe(MAX_RETRIES);
+    expect(item?.error).toContain('500');
+    expect(await listFailedOutboxItems()).toHaveLength(1);
+  });
+
+  it('does not spend retries when the request never reaches the server', async () => {
+    const eventId = 'evt-net';
+    const idempotencyKey = 'idem-net';
+
+    global.fetch = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
+
+    await queueOutbox(eventPayload(eventId, idempotencyKey));
+
+    for (let i = 0; i < MAX_RETRIES + 1; i++) {
+      await drainOutbox();
+    }
+
+    const item = await localDb.outbox.get(eventId);
+    expect(item?.retries).toBe(0);
+    expect(item?.error).toContain('Failed to fetch');
+    expect(await listFailedOutboxItems()).toHaveLength(0);
+  });
+
+  it('retryOutboxItem clears an exhausted failure so the item sends again', async () => {
+    const eventId = 'evt-retry';
+    const idempotencyKey = 'idem-retry';
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => ({ error: 'Server exploded' }),
+    } as unknown as Response);
+
+    await queueOutbox(eventPayload(eventId, idempotencyKey));
+    for (let i = 0; i < MAX_RETRIES + 1; i++) {
+      await drainOutbox();
+    }
+    expect((await localDb.outbox.get(eventId))?.retries).toBe(MAX_RETRIES);
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 201,
+      json: async () => ({
+        event: {
+          id: eventId,
+          patientId: 'p1',
+          authorId: 'u1',
+          status: 'pending_ai',
+          occurredAt: new Date().toISOString(),
+          capturedAt: new Date().toISOString(),
+          rawInput: 'Test event',
+          clientId: 'web',
+          idempotencyKey,
+          version: 1,
+          updatedAt: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
+          deletedAt: null,
+          attachments: [],
+        },
+        uploads: [],
+      }),
+    } as unknown as Response);
+
+    await retryOutboxItem(eventId);
+    expect((await localDb.outbox.get(eventId))?.retries).toBe(0);
+    expect((await localDb.outbox.get(eventId))?.error).toBeNull();
+
+    await drainOutbox();
+
+    expect(await localDb.outbox.get(eventId)).toBeUndefined();
+    expect((await localDb.events.get(eventId))?.synced).toBe(true);
+  });
+
+  it('resetOutboxRetries refills partial budgets and leaves exhausted items alone', async () => {
+    await localDb.outbox.bulkPut([
+      { ...eventPayload('evt-partial', 'idem-partial'), createdAt: new Date().toISOString(), retries: 2, error: 'Create failed: 500' },
+      { ...eventPayload('evt-spent', 'idem-spent'), createdAt: new Date().toISOString(), retries: MAX_RETRIES, error: 'Create failed: 400' },
+    ]);
+
+    await resetOutboxRetries();
+
+    expect((await localDb.outbox.get('evt-partial'))?.retries).toBe(0);
+    expect((await localDb.outbox.get('evt-partial'))?.error).toBeNull();
+    expect((await localDb.outbox.get('evt-spent'))?.retries).toBe(MAX_RETRIES);
   });
 
   it('uploads queued attachment blobs', async () => {

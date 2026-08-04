@@ -5,6 +5,9 @@ import { getActor } from '@/lib/policy';
 import { listPatients } from '@/lib/services/patients';
 import { SyncProvider } from '@/components/SyncProvider';
 import { OfflineIndicator } from '@/components/OfflineIndicator';
+import { OfflineNotice } from '@/components/OfflineNotice';
+import { StatusAnnouncer } from '@/components/StatusAnnouncer';
+import { SignOutButton } from '@/components/SignOutButton';
 import { TestExposes } from '@/components/TestExposes';
 import { BottomTabBar } from '@/components/BottomTabBar';
 import { FeedbackWidget } from '@/components/FeedbackWidget';
@@ -56,6 +59,7 @@ export default async function RootLayout({
       <body className="cc min-h-full bg-sand">
         <SyncProvider>
           <TestExposes />
+          <StatusAnnouncer />
           {user ? (
             <div className="flex min-h-full flex-col">
               <header className="flex items-center justify-between border-b border-line bg-card px-4 py-3">
@@ -73,18 +77,15 @@ export default async function RootLayout({
                 </div>
                 <div className="flex shrink-0 items-center gap-2 sm:gap-3">
                   <OfflineIndicator />
-                  <form
-                    action={async () => {
+                  <SignOutButton
+                    signOutAction={async () => {
                       'use server';
                       await signOut({ redirectTo: '/login' });
                     }}
-                  >
-                    <button type="submit" className="cc-btn cc-btn--ghost cc-btn--sm whitespace-nowrap">
-                      Sign out
-                    </button>
-                  </form>
+                  />
                 </div>
               </header>
+              <OfflineNotice />
               <main className="flex-1 px-4 py-[18px] pb-24">{children}</main>
               {hasCareCircle && <BottomTabBar isAdmin={isAdmin} />}
             </div>

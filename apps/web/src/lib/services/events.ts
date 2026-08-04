@@ -48,7 +48,7 @@ export async function createEvent(actor: Actor, input: CreateEventInput): Promis
         status: EventStatus.pending_ai,
         occurredAt: new Date(input.occurredAt),
         capturedAt: now,
-        rawInput: input.rawInput,
+        rawInput: input.rawInput ?? null,
         templateId: input.templateId ?? null,
         scheduleId: input.scheduleId ?? null,
         clientId: input.clientId,

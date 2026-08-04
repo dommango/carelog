@@ -8,17 +8,31 @@ export const attachmentInputSchema = z.object({
   sizeBytes: z.number().int().optional(),
 });
 
-export const createEventSchema = z.object({
-  id: z.string().uuid().optional(),
-  rawInput: z.string().min(1, 'Required'),
-  category: z.nativeEnum(EventCategory).optional(),
-  occurredAt: z.string().datetime().default(() => new Date().toISOString()),
-  templateId: z.string().uuid().optional(),
-  scheduleId: z.string().uuid().optional(),
-  clientId: z.string().min(1, 'Required'),
-  idempotencyKey: z.string().uuid(),
-  attachments: z.array(attachmentInputSchema).max(5).default([]),
-});
+// A voice memo or a photo is a complete log on its own — a caregiver mid-task
+// should not have to type as well. Whitespace-only text counts as no text, so
+// the "say something" rule cannot be satisfied by a stray space.
+const optionalRawInput = z
+  .string()
+  .trim()
+  .transform((value) => (value.length > 0 ? value : undefined))
+  .optional();
+
+export const createEventSchema = z
+  .object({
+    id: z.string().uuid().optional(),
+    rawInput: optionalRawInput,
+    category: z.nativeEnum(EventCategory).optional(),
+    occurredAt: z.string().datetime().default(() => new Date().toISOString()),
+    templateId: z.string().uuid().optional(),
+    scheduleId: z.string().uuid().optional(),
+    clientId: z.string().min(1, 'Required'),
+    idempotencyKey: z.string().uuid(),
+    attachments: z.array(attachmentInputSchema).max(5).default([]),
+  })
+  .refine((value) => Boolean(value.rawInput) || value.attachments.length > 0, {
+    message: 'Add a note, a photo, or a voice memo',
+    path: ['rawInput'],
+  });
 
 export const updateEventSchema = z.object({
   rawInput: z.string().min(1).optional(),
