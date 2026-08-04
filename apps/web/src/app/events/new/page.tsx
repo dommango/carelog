@@ -10,6 +10,7 @@ import { isAllowedUpload, MAX_UPLOAD_BYTES } from '@/lib/upload-limits';
 import { CategoryChips } from './CategoryChips';
 import { AttachmentFields, AttachmentDraft } from './AttachmentFields';
 import { validateEventDraft, hasDraftErrors, EventDraftErrors } from './validate';
+import { toLocalDatetimeInputValue } from '@/lib/datetime-local';
 
 export default function NewEventPage() {
   const router = useRouter();
@@ -22,10 +23,10 @@ export default function NewEventPage() {
   const [rawInput, setRawInput] = useState('');
   const [occurredAt, setOccurredAt] = useState(() => {
     if (dueAtParam) {
-      const d = new Date(dueAtParam);
-      if (!isNaN(d.getTime())) return d.toISOString().slice(0, 16);
+      const due = toLocalDatetimeInputValue(dueAtParam);
+      if (due) return due;
     }
-    return new Date().toISOString().slice(0, 16);
+    return toLocalDatetimeInputValue(new Date());
   });
   const [templateName, setTemplateName] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
