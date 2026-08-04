@@ -109,6 +109,11 @@ export function FeedbackWidget({ userEmail }: FeedbackWidgetProps) {
   const [annotatingIndex, setAnnotatingIndex] = useState<number | null>(null);
   const widgetRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const titleInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (open) titleInputRef.current?.focus();
+  }, [open]);
 
   const addScreenshot = useCallback((dataUrl: string) => {
     setScreenshots((prev) => {
@@ -256,7 +261,7 @@ export function FeedbackWidget({ userEmail }: FeedbackWidgetProps) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="fixed bottom-24 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-pill bg-accent text-white shadow-card transition-transform hover:bg-accent-hov active:scale-95 sm:bottom-6"
+        className="fixed bottom-24 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-pill bg-accent-strong text-white shadow-card transition-transform hover:bg-accent-hov active:scale-95 sm:bottom-6"
         title="Send feedback (Ctrl/Cmd+Shift+F)"
         aria-label="Send feedback"
       >
@@ -343,12 +348,12 @@ export function FeedbackWidget({ userEmail }: FeedbackWidgetProps) {
           </div>
 
           <input
+            ref={titleInputRef}
             type="text"
             value={title}
             onChange={(event) => setTitle(event.target.value)}
             placeholder={TYPE_CONFIG[type].placeholder}
             className="cc-input w-full"
-            autoFocus
           />
 
           <textarea
@@ -409,7 +414,7 @@ export function FeedbackWidget({ userEmail }: FeedbackWidgetProps) {
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={src}
-                      alt={`Attached image ${index + 1}`}
+                      alt={`Attachment ${index + 1}`}
                       className="h-full w-full object-cover"
                     />
                   </button>

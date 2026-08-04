@@ -24,7 +24,7 @@ export function Field({
         {label}
       </label>
       {children}
-      {hint && <p className="mt-1.5 text-[12.5px] font-semibold text-ink-soft">{hint}</p>}
+      {hint && <p className="mt-1.5 text-[13px] font-semibold text-ink-soft">{hint}</p>}
     </div>
   );
 }
@@ -47,7 +47,7 @@ export function FieldGroup({
   return (
     <fieldset className="border-0 p-0">
       <legend className="cc-field-label">{legend}</legend>
-      {hint && <p className="mb-2 text-[12.5px] font-semibold text-ink-soft">{hint}</p>}
+      {hint && <p className="mb-2 text-[13px] font-semibold text-ink-soft">{hint}</p>}
       {children}
     </fieldset>
   );

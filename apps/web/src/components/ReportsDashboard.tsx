@@ -223,7 +223,7 @@ export default function ReportsDashboard({
       <section className="cc-card">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="cc-eyebrow">Event log</h2>
-          <Link href="/" className="text-sm font-bold text-accent-deep hover:text-accent">
+          <Link href="/" className="text-sm font-bold text-accent-deep hover:underline">
             View timeline
           </Link>
         </div>

@@ -445,7 +445,7 @@ export default function Timeline() {
                           </div>
                         )}
 
-                        <div className="flex items-center gap-2 text-[12.5px] font-bold text-ink-faint">
+                        <div className="flex items-center gap-2 text-[13px] font-bold text-ink-faint">
                           <span className="cc-avatar cc-avatar--caregiver">{initials(event.authorName)}</span>
                           {event.authorName ?? 'Unknown'} · {new Date(event.occurredAt).toLocaleString()}
                         </div>

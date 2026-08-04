@@ -87,7 +87,7 @@ export default function LoginForm({ googleEnabled }: { googleEnabled: boolean })
         </form>
       )}
 
-      <p className="mt-6 text-center text-[12.5px] font-bold text-ink-faint">
+      <p className="mt-6 text-center text-[13px] font-bold text-ink-faint">
         {googleEnabled
           ? 'New here? Sign in to set up a care circle, or to join one you were invited to.'
           : 'Google sign-in is not configured for this environment.'}

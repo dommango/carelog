@@ -181,7 +181,7 @@ export function ScheduleForm({
 
       <div className="rounded-[var(--r-lg)] bg-card-sunk p-3.5">
         <p className="cc-field-label !mb-1">If nobody logs it</p>
-        <p className="mb-3 text-[12.5px] font-semibold text-ink-soft">
+        <p className="mb-3 text-[13px] font-semibold text-ink-soft">
           Optional. Text someone else when the window passes with nothing logged. Leave the minutes
           empty to skip this.
         </p>
@@ -202,7 +202,7 @@ export function ScheduleForm({
           {caregivers.length === 0 ? (
             <>
               <p className="cc-field-label">Then text</p>
-              <p className="text-[12.5px] font-semibold text-ink-soft">
+              <p className="text-[13px] font-semibold text-ink-soft">
                 Invite another caregiver first and they will show up here.
               </p>
             </>
