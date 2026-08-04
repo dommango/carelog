@@ -4,6 +4,7 @@ import { getActor } from '@/lib/policy';
 import { listSchedules, expandSchedule } from '@/lib/services/schedules';
 import { hasAnyEvent } from '@/lib/services/events';
 import { listAssignments } from '@/lib/services/invites';
+import { listPatients } from '@/lib/services/patients';
 import { buildOnboardingChecklist, type OnboardingChecklist as Checklist } from '@/lib/onboarding-checklist';
 import { OnboardingChecklist } from '@/components/OnboardingChecklist';
 import { RemindersToggle } from '@/components/RemindersToggle';
