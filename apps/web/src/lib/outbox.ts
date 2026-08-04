@@ -29,11 +29,23 @@ export async function drainOutbox(options?: { signal?: AbortSignal }): Promise<v
 
       try {
         await processOutboxItem(item);
-        await localDb.outbox.delete(item.id);
+        // Delete only if the row is still the one that was sent — an edit
+        // queued mid-flight replaces the row (same id, new createdAt), and
+        // deleting it here would silently drop that newer edit.
+        await localDb.transaction('rw', localDb.outbox, async () => {
+          const current = await localDb.outbox.get(item.id);
+          if (current && current.createdAt === item.createdAt) {
+            await localDb.outbox.delete(item.id);
+          }
+        });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        const networkFailure = isNetworkFailure(error);
-        const retries = networkFailure ? item.retries : item.retries + 1;
+        // Failing while the browser reports offline says nothing about whether
+        // the write is acceptable, so it costs no retry budget. Failures while
+        // nominally online (server down, captive portal) do spend it, so a
+        // persistently unreachable server eventually surfaces to the user.
+        const offline = !isOnline();
+        const retries = offline ? item.retries : item.retries + 1;
         await localDb.outbox.update(item.id, {
           retries,
           error: message,
@@ -41,7 +53,7 @@ export async function drainOutbox(options?: { signal?: AbortSignal }): Promise<v
         if (retries >= MAX_RETRIES) {
           console.error(`Outbox item ${item.id} exceeded max retries`, message);
         }
-        if (networkFailure && !isOnline()) break;
+        if (offline) break;
       }
     }
   })();
@@ -51,12 +63,6 @@ export async function drainOutbox(options?: { signal?: AbortSignal }): Promise<v
   } finally {
     drainPromise = null;
   }
-}
-
-// A request that never reached the server says nothing about whether the write
-// is acceptable, so it must not spend part of the item's retry budget.
-function isNetworkFailure(error: unknown): boolean {
-  return error instanceof TypeError || !isOnline();
 }
 
 export function isOutboxItemFailed(item: OutboxItem): boolean {

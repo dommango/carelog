@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
-import { startOutboxDrain, drainOutbox } from '@/lib/outbox';
+import { startOutboxDrain, drainOutbox, listFailedOutboxItems } from '@/lib/outbox';
 import { startDeltaSync, pullDelta } from '@/lib/sync';
 import { isOnline } from '@/lib/localDb';
 import { announce } from '@/lib/announcer';
@@ -59,26 +59,37 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     if (!ok && !wasFailing) announce(FAILED_MESSAGE);
   }, []);
 
+  // drainOutbox swallows per-item errors by design (each item keeps its own
+  // retry state), so a resolved drain says nothing about whether the writes
+  // landed — the outbox table does.
+  const hasUnsentWrites = useCallback(async () => {
+    try {
+      return (await listFailedOutboxItems()).length > 0;
+    } catch {
+      return false;
+    }
+  }, []);
+
   const syncNow = useCallback(async () => {
     setSyncing(true);
     try {
       await drainOutbox();
       await pullDelta();
-      markOutcome(true, { ok: SYNCED_MESSAGE, failed: FAILED_MESSAGE });
+      markOutcome(!(await hasUnsentWrites()), { ok: SYNCED_MESSAGE, failed: FAILED_MESSAGE });
     } catch (error) {
       console.error('Manual sync failed', error);
       markOutcome(false, { ok: SYNCED_MESSAGE, failed: FAILED_MESSAGE });
     } finally {
       setSyncing(false);
     }
-  }, [markOutcome]);
+  }, [markOutcome, hasUnsentWrites]);
 
   useEffect(() => {
     const handleOnline = () => {
       setOnline(true);
       setSyncing(true);
       drainOutbox()
-        .then(() => markOutcome(true, RECONNECT_MESSAGES))
+        .then(async () => markOutcome(!(await hasUnsentWrites()), RECONNECT_MESSAGES))
         .catch((error) => {
           console.error('Reconnect sync failed', error);
           markOutcome(false, RECONNECT_MESSAGES);
@@ -95,7 +106,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, [markOutcome]);
+  }, [markOutcome, hasUnsentWrites]);
 
   useEffect(() => {
     const stopOutbox = startOutboxDrain();
@@ -111,7 +122,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     eventSourceRef.current = new EventSource('/api/sync/stream');
     eventSourceRef.current.addEventListener('changed', () => {
       pullDelta()
-        .then(() => markOutcome(true))
+        .then(async () => markOutcome(!(await hasUnsentWrites())))
         .catch((err) => {
           console.error('SSE pull failed', err);
           markOutcome(false);
@@ -127,7 +138,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       navigator.serviceWorker?.removeEventListener('message', handleSwMessage);
       eventSourceRef.current?.close();
     };
-  }, [markOutcome]);
+  }, [markOutcome, hasUnsentWrites]);
 
   return (
     <SyncContext.Provider value={{ online, syncing, syncError, syncNow }}>

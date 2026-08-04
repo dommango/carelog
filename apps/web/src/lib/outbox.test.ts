@@ -168,10 +168,41 @@ describe('outbox drain', () => {
     expect(await listFailedOutboxItems()).toHaveLength(1);
   });
 
-  it('does not spend retries when the request never reaches the server', async () => {
+  it('does not spend retries when the connection drops mid-drain', async () => {
     const eventId = 'evt-net';
     const idempotencyKey = 'idem-net';
 
+    // The drain starts while online; the request fails because the link went
+    // down underneath it. Subsequent drains no-op on the offline guard.
+    // (The node test env has no `navigator`, which isOnline treats as online.)
+    global.fetch = vi.fn().mockImplementation(() => {
+      vi.stubGlobal('navigator', { onLine: false });
+      return Promise.reject(new TypeError('Failed to fetch'));
+    });
+
+    await queueOutbox(eventPayload(eventId, idempotencyKey));
+
+    try {
+      for (let i = 0; i < MAX_RETRIES + 1; i++) {
+        await drainOutbox();
+      }
+    } finally {
+      vi.unstubAllGlobals();
+    }
+
+    const item = await localDb.outbox.get(eventId);
+    expect(item?.retries).toBe(0);
+    expect(item?.error).toContain('Failed to fetch');
+    expect(await listFailedOutboxItems()).toHaveLength(0);
+  });
+
+  it('spends retries on requests that fail while the browser reports online', async () => {
+    const eventId = 'evt-portal';
+    const idempotencyKey = 'idem-portal';
+
+    // Captive portal / server down: navigator.onLine stays true but every
+    // fetch rejects. This must eventually surface as a failed item instead of
+    // retrying invisibly forever.
     global.fetch = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
 
     await queueOutbox(eventPayload(eventId, idempotencyKey));
@@ -181,9 +212,8 @@ describe('outbox drain', () => {
     }
 
     const item = await localDb.outbox.get(eventId);
-    expect(item?.retries).toBe(0);
-    expect(item?.error).toContain('Failed to fetch');
-    expect(await listFailedOutboxItems()).toHaveLength(0);
+    expect(item?.retries).toBe(MAX_RETRIES);
+    expect(await listFailedOutboxItems()).toHaveLength(1);
   });
 
   it('retryOutboxItem clears an exhausted failure so the item sends again', async () => {
