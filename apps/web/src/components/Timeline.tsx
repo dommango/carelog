@@ -345,12 +345,6 @@ export default function Timeline() {
                   return (
                     <li key={event.id}>
                       <article data-testid="event-card" className="cc-card">
-                        <span role="status" className="sr-only">
-                          {event.status === EventStatus.needs_review
-                            ? `${meta.label} entry needs your review`
-                            : ''}
-                        </span>
-
                         <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
                           <span className="cc-tier" style={tierStyle(meta.tier)}>
                             <Icon name={meta.icon} size={13} />

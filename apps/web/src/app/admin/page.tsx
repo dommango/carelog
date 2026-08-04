@@ -138,23 +138,12 @@ export default async function AdminPage() {
         ) : (
           <ul className="divide-y divide-line">
             {schedules.map((schedule) => (
-              <li key={schedule.id} className="flex items-center justify-between gap-3 py-2">
-                <div className="min-w-0">
-                  <span className="block text-[14px] font-bold text-ink">{schedule.name}</span>
-                  <span className="block text-sm text-ink-faint">
-                    {describeRrule(schedule.rrule)}
-                  </span>
-                </div>
-                <form action={scheduleDeleteAction} className="shrink-0">
-                  <input type="hidden" name="id" value={schedule.id} />
-                  <button
-                    type="submit"
-                    className="text-sm font-bold text-accent-deep hover:underline"
-                  >
-                    Pause
-                  </button>
-                </form>
-              </li>
+              <ScheduleRow
+                key={schedule.id}
+                id={schedule.id}
+                name={schedule.name}
+                description={describeRrule(schedule.rrule)}
+              />
             ))}
           </ul>
         )}
@@ -162,11 +151,7 @@ export default async function AdminPage() {
 
       <section id="new-schedule" className="cc-card scroll-mt-4">
         <h2 className="cc-eyebrow mb-3">New schedule</h2>
-        <ScheduleForm
-          action={scheduleAction}
-          templates={templateOptions}
-          caregivers={caregiverOptions}
-        />
+        <ScheduleForm templates={templateOptions} caregivers={caregiverOptions} />
       </section>
 
       <section id="caregivers" className="cc-card scroll-mt-4">
@@ -188,7 +173,7 @@ export default async function AdminPage() {
 
       <section id="invite-caregiver" className="cc-card scroll-mt-4">
         <h2 className="cc-eyebrow mb-3">Invite caregiver</h2>
-        <InviteForm action={inviteAction} patientId={patient.id} />
+        <InviteForm patientId={patient.id} />
       </section>
     </div>
   );
