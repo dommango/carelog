@@ -274,6 +274,7 @@ export default function Timeline() {
             {needsReview.map((event) => {
               const meta = categoryMeta(event.category);
               const error = actionErrors[event.id];
+              const confirmLabel = error ? 'Try again' : 'Confirm';
               return (
                 <li key={event.id} className="flex flex-col gap-2">
                   <span className="text-[14.5px] leading-[1.4] font-semibold text-ink">

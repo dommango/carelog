@@ -40,30 +40,32 @@ const baseEvent = {
   capturedAt: new Date('2026-07-05T10:05:00Z'),
   rawInput: 'Gave her morning meds' as string | null,
   structuredData: null,
-    aiConfidence: null,
-    aiFlags: [],
-    aiModelVersion: null,
-    aiClaimedAt: null,
-    scheduleId: null,
-    templateId: null,
-    hasConflict: false,
-    version: 1,
-    clientId: 'web',
-    idempotencyKey: 'key-1',
-    updatedAt: new Date(),
+  aiConfidence: null,
+  aiFlags: [],
+  aiModelVersion: null,
+  aiClaimedAt: null,
+  scheduleId: null,
+  templateId: null,
+  hasConflict: false,
+  version: 1,
+  clientId: 'web',
+  idempotencyKey: 'key-1',
+  updatedAt: new Date(),
+  createdAt: new Date(),
+  deletedAt: null,
+  patient: {
+    id: 'patient-1',
+    name: 'Mom',
+    dateOfBirth: null,
+    medicalNotes: null,
+    medications: [{ name: 'lisinopril', dose: '10 mg' }],
     createdAt: new Date(),
-    deletedAt: null,
-    patient: {
-      id: 'patient-1',
-      name: 'Mom',
-      dateOfBirth: null,
-      medicalNotes: null,
-      medications: [{ name: 'lisinopril', dose: '10 mg' }],
-      createdAt: new Date(),
-    },
-    attachments: [audioAttachment, photoAttachment],
-    ...overrides,
-  };
+  },
+  attachments: [audioAttachment, photoAttachment],
+};
+
+function buildEvent(overrides: Partial<typeof baseEvent> = {}) {
+  return { ...baseEvent, ...overrides };
 }
 
 vi.mock('@carelog/ai', async (importOriginal) => {
