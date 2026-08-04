@@ -13,6 +13,7 @@ import { InviteForm } from '@/components/admin/InviteForm';
 import { TemplateForm } from '@/components/admin/TemplateForm';
 import { ScheduleForm } from '@/components/admin/ScheduleForm';
 import { ScheduleRow } from '@/components/admin/ScheduleRow';
+import { roleLabel } from '@/components/admin/role-labels';
 
 export default async function AdminPage() {
   const session = await auth();
@@ -165,7 +166,7 @@ export default async function AdminPage() {
               <span className="min-w-0 truncate text-[14px] text-ink">
                 {assignment.user.name ?? assignment.user.email}
               </span>
-              <span className="shrink-0 text-sm text-ink-faint">{assignment.role}</span>
+              <span className="shrink-0 text-sm text-ink-faint">{roleLabel(assignment.role)}</span>
             </li>
           ))}
         </ul>
