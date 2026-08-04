@@ -129,67 +129,8 @@ describe('normalizeEventData', () => {
       flags: [],
     });
 
-    const event = {
-      id: 'event-1',
-      patientId: 'patient-1',
-      authorId: 'user-1',
-      category: null,
-      status: EventStatus.pending_ai,
-      occurredAt: new Date('2026-07-05T10:00:00Z'),
-      capturedAt: new Date('2026-07-05T10:05:00Z'),
-      rawInput: 'Gave her morning meds',
-      structuredData: null,
-      aiConfidence: null,
-      aiFlags: [],
-      aiModelVersion: null,
-      aiClaimedAt: null,
-      scheduleId: null,
-      templateId: null,
-      hasConflict: false,
-      version: 1,
-      clientId: 'web',
-      idempotencyKey: 'key-1',
-      updatedAt: new Date(),
-      createdAt: new Date(),
-      deletedAt: null,
-      patient: {
-        id: 'patient-1',
-        name: 'Mom',
-        dateOfBirth: null,
-        medicalNotes: null,
-        medications: [{ name: 'lisinopril', dose: '10 mg' }],
-        createdAt: new Date(),
-      },
-      attachments: [
-        {
-          id: 'att-1',
-          eventId: 'event-1',
-          kind: 'audio' as const,
-          storageKey: 'att-1.webm',
-          mimeType: 'audio/webm',
-          sizeBytes: 1234,
-          uploadedAt: new Date(),
-          transcript: 'lisinopril ten milligrams',
-          visionSummary: null,
-          createdAt: new Date(),
-        },
-        {
-          id: 'att-2',
-          eventId: 'event-1',
-          kind: 'photo' as const,
-          storageKey: 'att-2.jpg',
-          mimeType: 'image/jpeg',
-          sizeBytes: 5678,
-          uploadedAt: new Date(),
-          transcript: null,
-          visionSummary: 'Pill organizer shows Monday AM compartment empty',
-          createdAt: new Date(),
-        },
-      ],
-    };
-
     const result = await normalizeEventData({
-      event,
+      event: buildEvent(),
       schedules: [],
     });
 
@@ -199,5 +140,47 @@ describe('normalizeEventData', () => {
     expect(call.prompt).toContain('Audio transcripts');
     expect(call.prompt).toContain('Photo descriptions');
     expect(call.prompt).toContain('lisinopril ten milligrams');
+  });
+
+  // Voice-only logging: the caregiver recorded a memo and typed nothing, so
+  // rawInput is null and the transcript is the only account of what happened.
+  it('normalizes a voice-only event whose rawInput is null', async () => {
+    const mocked = vi.mocked(ai.normalizeEvent);
+    mocked.mockResolvedValue({
+      category: EventCategory.medication,
+      structuredData: { medication: 'lisinopril' },
+      confidence: 0.9,
+      flags: [],
+    });
+
+    const result = await normalizeEventData({
+      event: buildEvent({ rawInput: null, attachments: [audioAttachment] }),
+      schedules: [],
+    });
+
+    expect(result.category).toBe(EventCategory.medication);
+    const call = mocked.mock.calls[0][0];
+    expect(call.prompt).toContain('Audio transcripts');
+    expect(call.prompt).toContain('lisinopril ten milligrams');
+    expect(call.prompt).not.toContain('Photo descriptions');
+  });
+
+  it('normalizes a photo-only event whose rawInput is null', async () => {
+    const mocked = vi.mocked(ai.normalizeEvent);
+    mocked.mockResolvedValue({
+      category: EventCategory.medication,
+      structuredData: { medication: 'lisinopril' },
+      confidence: 0.7,
+      flags: [],
+    });
+
+    await normalizeEventData({
+      event: buildEvent({ rawInput: null, attachments: [photoAttachment] }),
+      schedules: [],
+    });
+
+    const call = mocked.mock.calls[0][0];
+    expect(call.prompt).toContain('Photo descriptions');
+    expect(call.prompt).toContain('Pill organizer shows Monday AM compartment empty');
   });
 });
