@@ -8,6 +8,11 @@ export default function LoginPage() {
       <Suspense fallback={null}>
         <LoginForm googleEnabled={googleEnabled} />
       </Suspense>
+      <p className="mx-auto mt-8 max-w-sm text-center text-sm text-ink-faint">
+        CareLog is a record-keeping tool for informal caregivers, not a medical device. It
+        does not provide medical advice — in an emergency, call your local emergency
+        number.
+      </p>
     </div>
   );
 }
