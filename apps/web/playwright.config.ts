@@ -1,4 +1,11 @@
 import { defineConfig, devices } from '@playwright/test';
+import { config } from 'dotenv';
+
+// The webServer below runs `pnpm dev`, which reads apps/web/.env.local. Load the
+// same file here so the specs and the server they talk to agree — otherwise a
+// developer who sets TEST_LOGIN_SECRET in .env.local gets 401 on every E2E
+// sign-in, because the server enforces a secret the specs never send.
+config({ path: '.env.local' });
 
 export default defineConfig({
   testDir: './e2e',

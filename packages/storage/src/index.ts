@@ -7,10 +7,27 @@ export interface StorageObject {
   sizeBytes: number;
 }
 
+/** A storage key resolved outside the storage root, or was otherwise unusable. */
+export class InvalidStorageKeyError extends Error {
+  constructor(key: string) {
+    super(`Invalid storage key: ${key}`);
+    this.name = 'InvalidStorageKeyError';
+  }
+}
+
 export interface Storage {
   getObject(key: string): Promise<StorageObject>;
   putObject(key: string, body: Buffer, contentType: string): Promise<void>;
-  getSignedUrl(key: string, expiresSeconds: number): Promise<{ url: string; method: 'PUT' }>;
+  /**
+   * URL the client should PUT an attachment's bytes to. Keyed by attachment id,
+   * never by storage key: the upload endpoint re-derives the key from the row it
+   * owns, so a caller cannot choose where its bytes land.
+   *
+   * No expiry parameter: this is an authenticated application route, not a
+   * pre-signed object URL. A future object-store backend will need its own
+   * expiring-credential shape.
+   */
+  getUploadUrl(attachmentId: string): Promise<{ url: string; method: 'PUT' }>;
 }
 
 export type StorageConfig = {
@@ -23,14 +40,22 @@ export class LocalStorage implements Storage {
   private baseUrl: string;
 
   constructor(config: StorageConfig) {
-    this.root = config.root;
+    this.root = path.resolve(config.root);
     this.baseUrl = config.baseUrl?.replace(/\/$/, '') ?? '';
   }
 
   private resolvePath(key: string): string {
-    // Reject keys that try to escape the storage root.
-    const safeKey = key.replace(/^(\.\.\/)+/g, '').replace(/^\//, '');
-    return path.join(this.root, safeKey);
+    // path.resolve collapses `..` segments and lets an absolute key win
+    // outright, so the containment check has to happen on the *resolved* path.
+    // Sanitising the raw string instead is what let `a/../../../etc/passwd`
+    // through: stripping a leading `../` run leaves the interior ones intact.
+    const resolved = path.resolve(this.root, key);
+    // Requiring the separator also rejects the root itself and sibling
+    // directories that merely share its prefix (`/data/storage-evil`).
+    if (!resolved.startsWith(this.root + path.sep)) {
+      throw new InvalidStorageKeyError(key);
+    }
+    return resolved;
   }
 
   async getObject(key: string): Promise<StorageObject> {
@@ -49,12 +74,9 @@ export class LocalStorage implements Storage {
     await writeFile(filePath, body);
   }
 
-  async getSignedUrl(key: string): Promise<{ url: string; method: 'PUT' }> {
-    const encoded = encodeURIComponent(key);
-    const url = this.baseUrl
-      ? `${this.baseUrl}/api/upload?key=${encoded}`
-      : `/api/upload?key=${encoded}`;
-    return { url, method: 'PUT' };
+  async getUploadUrl(attachmentId: string): Promise<{ url: string; method: 'PUT' }> {
+    const route = `/api/upload/${encodeURIComponent(attachmentId)}`;
+    return { url: this.baseUrl ? `${this.baseUrl}${route}` : route, method: 'PUT' };
   }
 }
 

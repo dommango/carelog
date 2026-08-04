@@ -5,6 +5,9 @@ const ADMIN_NAME = 'Admin User';
 
 async function signIn(page: Page) {
   const res = await page.request.post('/api/auth/test-login', {
+    // Ignored by the dev server these specs normally run against; required when
+    // pointed at a non-development deployment via PLAYWRIGHT_BASE_URL.
+    headers: { 'x-test-login-secret': process.env.TEST_LOGIN_SECRET ?? '' },
     data: { email: ADMIN_EMAIL, name: ADMIN_NAME },
   });
   expect(res.ok()).toBe(true);

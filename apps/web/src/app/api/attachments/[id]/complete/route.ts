@@ -1,7 +1,6 @@
 import { NextRequest } from 'next/server';
 import { auth } from '@/auth';
-import { getActor } from '@/lib/policy';
-import { markAttachmentUploaded } from '@/lib/services/events';
+import { getActorForPatient, can } from '@/lib/policy';
 import { prisma } from '@/lib/prisma';
 import { enqueue, AI_PROCESS_EVENT } from '@carelog/queue';
 import { NotFoundError } from '@/lib/errors';
@@ -13,11 +12,6 @@ export async function POST(
   const session = await auth();
   if (!session?.user?.id) {
     return new Response('Unauthorized', { status: 401 });
-  }
-
-  const actor = await getActor(session.user.id as string);
-  if (!actor) {
-    return new Response('Forbidden', { status: 403 });
   }
 
   const { id } = await params;
@@ -32,29 +26,27 @@ export async function POST(
       throw new NotFoundError();
     }
 
-    if (attachment.event.patientId !== actor.assignment.patientId) {
+    const patientId = attachment.event.patientId;
+
+    // Same gate as PUT /api/upload/[id]: resolved for this specific patient,
+    // and requiring the event-authoring permission so a read-only viewer
+    // cannot drive an attachment to completion.
+    const actor = await getActorForPatient(session.user.id as string, patientId);
+    if (!can(actor, 'event:create', { type: 'event', patientId })) {
       return new Response('Forbidden', { status: 403 });
     }
 
-    // MERGE NOTE — delete this call when the security-hardening branch (#16)
-    // lands. There, PUT /api/upload/[id] stamps uploadedAt itself, as part of
-    // the same update that stores the object, and `markAttachmentUploaded` is
-    // removed entirely. Marking it here as well would let any caller in the
-    // circle assert an upload that never happened, which combined with that
-    // branch's write-once guard permanently blocks the real upload. It is kept
-    // for now only because this branch does not carry that route change, and
-    // the count below needs uploadedAt set by something.
-    //
-    // Keeping it by mistake fails loudly rather than silently: #16's test
-    // "still stores bytes for an attachment someone else marked complete first"
-    // breaks by construction if this line survives. A red test there is the
-    // expected signal — delete this call, do not work around the test.
-    await markAttachmentUploaded(id);
+    // Deliberately does NOT mark the attachment uploaded. That stamp is the
+    // record that bytes were actually stored, so it belongs to the request that
+    // stored them (PUT /api/upload/[id]). Setting it here let any caller assert
+    // an upload had happened when it had not.
 
-    // Only once every attachment on the event has landed. This used to fire per
-    // attachment, so a two-photo event queued two pipeline runs — the first
-    // reading media the second was still uploading, and both racing on the same
-    // row. The worker needs all the files present to enrich the event once.
+    // Enqueue only once every attachment on the event has landed. This used to
+    // fire per attachment, so a two-photo event queued two pipeline runs — the
+    // first reading media the second was still uploading, and both racing on
+    // the same row. The worker needs all the files present to enrich the event
+    // once. `uploadedAt` is set by the upload route, so this now counts
+    // attachments whose bytes genuinely exist.
     const pending = await prisma.attachment.count({
       where: { eventId: attachment.eventId, uploadedAt: null },
     });

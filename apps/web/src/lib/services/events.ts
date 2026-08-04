@@ -32,7 +32,7 @@ export async function createEvent(actor: Actor, input: CreateEventInput): Promis
     if (existing) {
       const uploads = await Promise.all(
         existing.attachments.map(async (attachment) => {
-          const signed = await storage.getSignedUrl(attachment.storageKey, 600);
+          const signed = await storage.getUploadUrl(attachment.id);
           return { attachmentId: attachment.id, url: signed.url, method: signed.method };
         })
       );
@@ -71,7 +71,7 @@ export async function createEvent(actor: Actor, input: CreateEventInput): Promis
           sizeBytes: attachmentInput.sizeBytes ?? null,
         },
       });
-      const signed = await storage.getSignedUrl(storageKey, 600);
+      const signed = await storage.getUploadUrl(attachmentInput.id);
       uploads.push({ attachmentId: attachmentInput.id, url: signed.url, method: signed.method });
     }
 
@@ -233,13 +233,6 @@ export async function updateEvent(actor: Actor, id: string, input: UpdateEventIn
   }
 
   return updated;
-}
-
-export async function markAttachmentUploaded(attachmentId: string): Promise<void> {
-  await prisma.attachment.update({
-    where: { id: attachmentId },
-    data: { uploadedAt: new Date() },
-  });
 }
 
 export async function confirmEvent(actor: Actor, id: string) {
