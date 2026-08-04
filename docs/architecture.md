@@ -1,10 +1,14 @@
 # Caretaker Activity Logging App — Architecture Design ("CareLog")
 
-**Status:** Draft for review · 2026-07-04
+**Status:** Original design document · 2026-07-04
 
-> **Immediate next step (user-approved):** create `~/projects/carelog`, `git init`, commit this plan file into it (`docs/architecture.md`), so the Ultraplan cloud session can launch from a git repository. No application code is written until the refined plan returns from Ultraplan and is approved.
+> **Note:** This is the pre-implementation design document, preserved largely as written.
+> A few details have since drifted from the implementation — notably the repo uses
+> **Prisma 5 with `prisma-client-js`** (not Prisma 7 driver adapters) and media storage is
+> currently a **local-filesystem store** (S3/R2 not yet wired). Where this document and the
+> code disagree, the code and the root `CLAUDE.md` are authoritative.
 >
-> Deliverable: this is an architecture design document (no code changes yet). Key decision up front: **greenfield app, not a CareCover extension** — CareCover was explored and confirmed a poor fit (single-admin HMAC auth, no roles, no patient/event model, no PWA/offline). Reuse Dom's conventions instead: Railway + separate cron/worker service, Prisma 7 driver adapters, Zod at boundaries, strict 3-layer services, Twilio SMS with NotificationLog fallback.
+> Key decision up front: **greenfield app, not an extension of a prior in-house care app** — that app was explored and confirmed a poor fit (single-admin HMAC auth, no roles, no patient/event model, no PWA/offline). Reuse the author's proven conventions instead: Railway + separate cron/worker service, Prisma driver adapters, Zod at boundaries, strict 3-layer services, Twilio SMS with NotificationLog fallback.
 
 ---
 
@@ -21,7 +25,7 @@ This system lets a small team of caregivers (family members plus possibly hired 
 
 **Explicit non-goals (v1):** multi-patient SaaS tenancy, EHR/FHIR integration, medical decision support. The schema keeps a `patients` table so multi-patient support is a data change, not a rewrite — but the product is built for one household.
 
-**Greenfield, not a CareCover extension.** CareCover was evaluated as a starting point and confirmed a poor fit: it has single-admin HMAC-cookie auth (no user accounts or roles), no patient/care-event domain model, and no PWA/offline infrastructure. Retrofitting multi-user RBAC, an event schema, and offline sync onto it would cost more than a clean start and would destabilize a live app. **Recommendation: a new greenfield app that reuses Dom's proven conventions rather than CareCover's code** — Railway deployment with a separate cron/worker service, Prisma 7 with driver adapters, Zod validation at every boundary, a strict 3-layer service architecture (routes → services → data access), and Twilio SMS with a NotificationLog fallback when env vars are unset.
+**Greenfield, not an extension of a prior app.** An existing in-house care app was evaluated as a starting point and confirmed a poor fit: it has single-admin HMAC-cookie auth (no user accounts or roles), no patient/care-event domain model, and no PWA/offline infrastructure. Retrofitting multi-user RBAC, an event schema, and offline sync onto it would cost more than a clean start and would destabilize a live app. **Recommendation: a new greenfield app that reuses the author's proven conventions rather than that app's code** — Railway deployment with a separate cron/worker service, Prisma with driver adapters, Zod validation at every boundary, a strict 3-layer service architecture (routes → services → data access), and Twilio SMS with a NotificationLog fallback when env vars are unset.
 
 **Honest sizing note.** The realistic load is ~5 users, ~30–60 events/day, one patient. The document presents the full layered architecture that was requested — gateway, service decomposition, pipeline, scale-out path — but the concrete recommendation throughout is a **modular monolith with clean internal seams**, deployed on Railway, that can be split into the microservice shape later if it ever needs to. Every "service" in Section 5 is designed as a module boundary first and a deployment boundary only if warranted. Building the distributed version first would multiply operational cost and failure modes for zero benefit at this scale.
 
@@ -102,7 +106,7 @@ The one structural rule that everything else hangs on: **the write path never bl
 **Recommendation: an installable Next.js PWA.** Not React Native, not Flutter.
 
 - **Fit for purpose.** Everything this app needs from the device is available to the web platform today: camera (`<input capture>` / `getUserMedia`), microphone (`MediaRecorder`), speech-to-text (Web Speech API where available), offline storage (IndexedDB + Service Worker), and push notifications (Web Push works on iOS since 16.4 for installed PWAs, and everywhere on Android/desktop). There is no native-only capability on the requirements list.
-- **Fit for the team.** A solo developer maintaining one Next.js codebase ships features; the same developer maintaining a React Native app plus its build pipeline, app-store review cycle, and a separate web admin ships apologies. Dom already runs PWAs on Railway (arnie), so the marginal operational knowledge is zero.
+- **Fit for the team.** A solo developer maintaining one Next.js codebase ships features; the same developer maintaining a React Native app plus its build pipeline, app-store review cycle, and a separate web admin ships apologies. The author already runs PWAs on Railway, so the marginal operational knowledge is zero.
 - **Distribution.** Family caregivers install from a link — no App Store account, no TestFlight invitations, instant updates on deploy. For a five-person private app this is decisively better.
 - **Escape hatch.** If a genuinely native capability ever becomes necessary (e.g., background geofenced reminders), wrap the same web app in Capacitor rather than rewriting. Flutter is the weakest option here: separate language, no code sharing with the web, and its web target is poor for form-heavy apps.
 
@@ -122,7 +126,7 @@ The client treats the network as an optimization. Three pieces:
 
 **Conflict strategy.** Care events are overwhelmingly **append-only**: two caregivers rarely edit the same record, they create separate records. So the strategy is deliberately simple:
 - Creates never conflict (client-generated UUIDs).
-- Edits use **optimistic versioning**: the client sends the `version` it edited from; on mismatch the server applies **last-write-wins** but records the losing write's before/after in the audit log, and flags the event `has_conflict` so the UI can surface "Maria also edited this entry" for human reconciliation. Given ~5 users, this will fire approximately never — but when it does, nothing is silently lost, because the audit trail retains every version.
+- Edits use **optimistic versioning**: the client sends the `version` it edited from; on mismatch the server applies **last-write-wins** but records the losing write's before/after in the audit log, and flags the event `has_conflict` so the UI can surface "Alex also edited this entry" for human reconciliation. Given ~5 users, this will fire approximately never — but when it does, nothing is silently lost, because the audit trail retains every version.
 - No CRDTs, no operational transforms. That machinery is for collaborative text editing, not append-mostly logs; adopting it here would be pure complexity.
 
 ### 3.3 Capture modalities
@@ -155,12 +159,12 @@ Server-side, the template service periodically recomputes usage statistics and (
 On the pragmatic path, "gateway" is a **thin edge layer inside the Next.js app**: Railway's edge handles TLS; Next.js middleware handles session verification, role guard, request-ID injection, and rate limiting before any route handler runs. This is functionally the requested gateway — auth, routing, rate limiting — without a second deployable. On the scale-out path (Section 13), these responsibilities lift into a dedicated gateway (AWS API Gateway or Envoy/Traefik) unchanged in *contract*, which is why the middleware is written as a discrete, testable module rather than scattered checks.
 
 - **Rate limiting:** per-user counters (Postgres-backed, or in-memory per instance at this scale — honest answer: with 5 users it's mostly protection against a runaway client retry loop and abuse of the AI endpoints, which are the only expensive ones). AI-triggering endpoints get a stricter budget (e.g., 30 jobs/user/hour).
-- **Routing:** REST under `/api/v1/*` — `events`, `templates`, `schedules`, `sync`, `reports`, `admin`. Versioned from day one because offline clients mean old app versions keep talking to new servers. Every request body is parsed through a **Zod schema at the boundary** before any service code runs — Dom's existing convention, applied uniformly.
+- **Routing:** REST under `/api/v1/*` — `events`, `templates`, `schedules`, `sync`, `reports`, `admin`. Versioned from day one because offline clients mean old app versions keep talking to new servers. Every request body is parsed through a **Zod schema at the boundary** before any service code runs — an existing convention, applied uniformly.
 - **Every request** gets a `request_id` and an authenticated `actor` context that flows into the audit log.
 
 ### 4.2 AuthN
 
-**Auth.js (NextAuth) with database sessions.** Note this is a deliberate departure from CareCover, whose single-admin HMAC-cookie auth cannot express multiple users or roles and is exactly why extending CareCover was rejected. Providers: Google sign-in (proven low-friction for this family in HessFest) plus email magic-link for caregivers without Google accounts. Database-backed sessions (not stateless JWTs) because instant revocation matters when a hired caregiver leaves — you remove their access *now*, not at token expiry. Sessions are long-lived (30 days, rolling) so caregivers aren't re-authenticating at the bedside. Invite-only registration: an admin generates an invite link bound to a role; there is no open signup.
+**Auth.js (NextAuth) with database sessions.** Note this is a deliberate departure from the prior app, whose single-admin HMAC-cookie auth cannot express multiple users or roles and is exactly why extending it was rejected. Providers: Google sign-in (proven low-friction for non-technical family members in a previous project) plus email magic-link for caregivers without Google accounts. Database-backed sessions (not stateless JWTs) because instant revocation matters when a hired caregiver leaves — you remove their access *now*, not at token expiry. Sessions are long-lived (30 days, rolling) so caregivers aren't re-authenticating at the bedside. Invite-only registration: an admin generates an invite link bound to a role; there is no open signup.
 
 ### 4.3 RBAC
 
@@ -192,7 +196,7 @@ Cross-cutting: the **Sync Service** (delta reads + SSE fan-out) and the **audit 
 
 ### 5.2 Modular-monolith mapping — the actual recommendation
 
-All five services are **TypeScript modules in one repository, one Prisma schema, deployed as two Railway processes** — matching Dom's existing web-app-plus-separate-cron-service deployment convention:
+All five services are **TypeScript modules in one repository, one Prisma schema, deployed as two Railway processes** — matching the author's existing web-app-plus-separate-cron-service deployment convention:
 
 ```
 apps/web        → Next.js app: UI + API routes + gateway middleware + SSE  (Railway service 1)
@@ -204,7 +208,7 @@ packages/db     → Prisma 7 schema + client (driver adapters, node-postgres)
 packages/shared → Zod schemas, category enums, types shared with the client
 ```
 
-**Inside every module, a strict 3-layer architecture** (Dom's established pattern):
+**Inside every module, a strict 3-layer architecture** (the author's established pattern):
 1. **Route/controller layer** — HTTP concerns only: Zod-parse the request at the boundary, resolve the actor, call the service, shape the response. No business logic.
 2. **Service layer** — business logic, policy checks (`can(...)`), audit writes, transaction orchestration. No HTTP types, no direct Prisma queries.
 3. **Data-access layer** — Prisma repositories with typed methods; the only layer that touches the database. Modules never reach into another module's tables — only its service interface.
@@ -217,7 +221,7 @@ The web/worker split is the one deployment boundary that pays for itself immedia
 
 ### 6.1 Why not TensorFlow/PyTorch
 
-The original brief suggested TensorFlow/PyTorch. **This is the wrong tool class for this problem.** Those are frameworks for *training* models, which presupposes labeled training data (this app starts with zero examples), ML engineering time (solo developer), and GPU serving infrastructure. The actual tasks — turning "gave mom her breathing treatment about 20 min ago, she did ok but coughed a lot after" into `{category: nebulizer_treatment, occurred_at: …, duration: …, observations: [coughing_post_treatment]}` — are language understanding and structured extraction, which frontier LLM APIs do out of the box, with few-shot prompting instead of training, for fractions of a cent per event. **Recommendation: Anthropic Claude API** (already proven in Dom's SousIQ for exactly this parse-messy-input-to-structured-data pattern). Claude Haiku 4.5 for routine classification/extraction (fast, ~90% of Sonnet capability at a third of the cost), escalating to Sonnet when confidence is low or the input is long/ambiguous — and note from SousIQ experience that **vision tasks need Sonnet-class models**; don't route photo analysis to Haiku without verifying vision quality first. A custom model would only enter the picture years later, if ever, as a cost optimization distilled *from* accumulated LLM-labeled data.
+The original brief suggested TensorFlow/PyTorch. **This is the wrong tool class for this problem.** Those are frameworks for *training* models, which presupposes labeled training data (this app starts with zero examples), ML engineering time (solo developer), and GPU serving infrastructure. The actual tasks — turning "gave her the breathing treatment about 20 min ago, she did ok but coughed a lot after" into `{category: nebulizer_treatment, occurred_at: …, duration: …, observations: [coughing_post_treatment]}` — are language understanding and structured extraction, which frontier LLM APIs do out of the box, with few-shot prompting instead of training, for fractions of a cent per event. **Recommendation: Anthropic Claude API** (already proven in a prior project of the author's for exactly this parse-messy-input-to-structured-data pattern). Claude Haiku 4.5 for routine classification/extraction (fast, ~90% of Sonnet capability at a third of the cost), escalating to Sonnet when confidence is low or the input is long/ambiguous — and note from that project's experience that **vision tasks need Sonnet-class models**; don't route photo analysis to Haiku without verifying vision quality first. A custom model would only enter the picture years later, if ever, as a cost optimization distilled *from* accumulated LLM-labeled data.
 
 ### 6.2 Pipeline stages
 
@@ -232,7 +236,7 @@ ingest → (transcribe | vision) → normalize+classify → enrich → confidenc
 3. **Vision (photos).** **Claude vision** in the same normalize call — image + context in one request. Handles OCR of medication labels, describing a meal photo, reading a paper note from a visiting nurse. No separate OCR service needed at this volume.
 4. **Normalize + classify.** One Claude call with **tool-use / structured output**: the tool's input schema *is* the output contract, so responses are guaranteed-parseable JSON. The prompt includes: the transcript/text/image, capture timestamp and template context, the category taxonomy with definitions, the patient's current medication list and schedules (retrieved context — this is what turns "her breathing medicine" into "albuterol 2.5mg"), and 5–10 few-shot examples. Category enum: `nebulizer_treatment | medication | meal | hydration | mood_behavior | vitals | toileting | sleep | activity | incident | observation_other`. Per-category Zod/JSON schemas define the structured payload. The model also returns `confidence: 0–1` and `flags` (e.g., `possible_missed_dose`, `mentions_pain`, `time_ambiguous`).
 5. **Enrich.** Mostly within the same call (one round trip, cheaper, more coherent): extract med names/doses/durations, map mood language to a 1–5 mood score with the raw phrase preserved, resolve relative times ("about an hour ago") against capture time, link the event to a matching `schedule` occurrence when one is open (this linkage powers adherence tracking and reminder cancellation).
-6. **Confidence gate.** `confidence ≥ 0.8` → `status='confirmed'` (auto-accepted, still editable). `0.5–0.8` → `needs_review`; the *authoring caregiver* gets a gentle in-app prompt showing raw input beside the AI's interpretation with one-tap confirm/fix. `< 0.5` or schema violation → `needs_review` with the structured guess withheld from reports until confirmed. Every human correction is stored (audit log holds AI-version → human-version) — this becomes the few-shot/eval corpus that improves the prompt over time, evaluated with the same nightly-eval pattern used on SousIQ.
+6. **Confidence gate.** `confidence ≥ 0.8` → `status='confirmed'` (auto-accepted, still editable). `0.5–0.8` → `needs_review`; the *authoring caregiver* gets a gentle in-app prompt showing raw input beside the AI's interpretation with one-tap confirm/fix. `< 0.5` or schema violation → `needs_review` with the structured guess withheld from reports until confirmed. Every human correction is stored (audit log holds AI-version → human-version) — this becomes the few-shot/eval corpus that improves the prompt over time, evaluated with a nightly-eval pattern proven in a prior project.
 7. **Store + sync.** Derived fields written in one transaction with an audit entry (`actor = system:ai-pipeline`, model + prompt version recorded), then an SSE nudge fans out so every device refreshes the event from "processing…" to its structured card.
 
 ### 6.3 Queue choice: pg-boss
@@ -243,7 +247,7 @@ ingest → (transcribe | vision) → normalize+classify → enrich → confidenc
 
 ## 7. Data Model
 
-Postgres via **Prisma 7 with driver adapters** (node-postgres adapter — Dom's current convention). Conventions: UUID PKs (client-generatable), `created_at`/`updated_at` everywhere, soft-delete via `deleted_at` (a care-record app never hard-deletes care data), sync/versioning fields on synced tables. All `Json` fields validated by per-category Zod schemas in `packages/shared` at the application boundary.
+Postgres via **Prisma with driver adapters** (node-postgres adapter — the author's convention at design time; the implementation landed on Prisma 5 with `prisma-client-js`, see the note at the top). Conventions: UUID PKs (client-generatable), `created_at`/`updated_at` everywhere, soft-delete via `deleted_at` (a care-record app never hard-deletes care data), sync/versioning fields on synced tables. All `Json` fields validated by per-category Zod schemas in `packages/shared` at the application boundary.
 
 ```prisma
 enum Role            { admin  caregiver  viewer }
@@ -412,7 +416,7 @@ Design notes worth calling out:
 - **`structuredData` as JSONB with per-category Zod schemas** beats one-table-per-category: categories evolve, and reporting queries use JSONB operators plus the indexed `category`/`occurredAt` columns. Promote a JSON field to a real column only when a query needs it (`moodScore` is the likely first candidate).
 - **Audit log is application-transactional**: every mutation writes its audit row in the same DB transaction, and the table has no UPDATE/DELETE path in the app (enforceable with a Postgres `REVOKE`/trigger belt-and-suspenders).
 - **`idempotencyKey` unique constraint** is what makes offline replay safe — the database, not application logic, is the final arbiter against duplicates.
-- The **Notification table doubles as the NotificationLog** (Dom's convention): dispatch always writes the row first; when Twilio env vars are unset (dev/staging), delivery stops there with `deliveryStatus = 'logged_only'` instead of failing (detail in Section 9).
+- The **Notification table doubles as the NotificationLog** (the author's convention): dispatch always writes the row first; when Twilio env vars are unset (dev/staging), delivery stops there with `deliveryStatus = 'logged_only'` instead of failing (detail in Section 9).
 
 ---
 
@@ -435,9 +439,9 @@ A pg-boss **cron job every minute** in the worker process (the separate cron ser
 1. Expand each schedule's `rrule` to occurrences in the near horizon (the `rrule` npm package — battle-tested RFC 5545 implementation).
 2. For each occurrence crossing a `remindOffsets` threshold with no `Notification` row yet for that (schedule, dueAt, offset): create the row and dispatch.
 3. **Acknowledgment:** when the AI pipeline (or a template quick-log) links a new `CareEvent` to a schedule occurrence within its window, mark the notification `acknowledgedAt` and suppress pending reminders/escalation for that occurrence.
-4. **Escalation:** if `dueAt + escalation.afterMinutes` passes unacknowledged, notify the escalation targets (typically the admin): *"The 8:00 AM nebulizer treatment hasn't been logged (it's now 9:15). Last contact: Maria logged breakfast at 8:40."* — the same tier-1/tier-2 escalation instinct as CareCover's product design (the pattern is reused; the code is not).
+4. **Escalation:** if `dueAt + escalation.afterMinutes` passes unacknowledged, notify the escalation targets (typically the admin): *"The 8:00 AM nebulizer treatment hasn't been logged (it's now 9:15). Last contact: Alex logged breakfast at 8:40."* — the same tier-1/tier-2 escalation instinct as the prior app's product design (the pattern is reused; the code is not).
 
-**Channels, in order:** (1) **Web Push** to installed PWAs (VAPID/`web-push`; Android/desktop everywhere, iOS ≥16.4 for installed PWAs) — free, primary; (2) **Twilio SMS** as fallback and escalation channel — the most reliable way to reach a caregiver whose phone is in a pocket. Per Dom's convention, the SMS sender **degrades to log-only when Twilio env vars are unset**: the Notification row is always written first, and if `TWILIO_ACCOUNT_SID`/auth token/from-number are absent, dispatch marks it `deliveryStatus = 'logged_only'` and returns success — dev and staging run the full flow with zero Twilio config, and the log shows exactly what would have been sent. Note: US SMS requires A2P 10DLC campaign registration with multi-week lead time, and CareCover's rejection showed the campaign framing matters — start early. (3) In-app notification center as the persistent record.
+**Channels, in order:** (1) **Web Push** to installed PWAs (VAPID/`web-push`; Android/desktop everywhere, iOS ≥16.4 for installed PWAs) — free, primary; (2) **Twilio SMS** as fallback and escalation channel — the most reliable way to reach a caregiver whose phone is in a pocket. By convention, the SMS sender **degrades to log-only when Twilio env vars are unset**: the Notification row is always written first, and if `TWILIO_ACCOUNT_SID`/auth token/from-number are absent, dispatch marks it `deliveryStatus = 'logged_only'` and returns success — dev and staging run the full flow with zero Twilio config, and the log shows exactly what would have been sent. Note: US SMS requires A2P 10DLC campaign registration with multi-week lead time, and prior experience showed the campaign framing matters — start early. (3) In-app notification center as the persistent record.
 
 Quiet hours and per-user channel preferences live on the user profile; escalations ignore quiet hours by design.
 
@@ -458,6 +462,12 @@ Charts render client-side (Recharts) from JSON aggregates; `needs_review` events
 ---
 
 ## 11. Security & HIPAA Considerations
+
+> **CareLog is not HIPAA-compliant.** It is not offered as a covered entity or business
+> associate, no BAA is available, and it sends care notes to third-party AI providers
+> (Anthropic, OpenAI). Do not use it to store or process PHI on behalf of a healthcare
+> provider. The section below explains why HIPAA does not attach to the intended
+> family-internal use case, and what a compliance upgrade path would look like.
 
 **What HIPAA actually requires, honestly.** HIPAA binds *covered entities* (providers, health plans, clearinghouses) and their *business associates*. A family privately coordinating care for their own relative is **not a covered entity**, and this app, used that way, is **not legally subject to HIPAA**. Where it *would* attach: if the app were offered to home-health *agencies*, or marketed as a service handling PHI on behalf of providers. The design posture therefore is **"HIPAA-mindful"**: build the technical safeguards HIPAA would demand (simply good practice for health data this sensitive), and keep a concrete BAA upgrade path documented so commercializing is a paperwork-and-vendor exercise, not a re-architecture.
 
@@ -553,7 +563,7 @@ sequenceDiagram
 
 ### 13.1 Recommended: Railway (pragmatic path)
 
-- **Services:** `web` (Next.js: UI, API, SSE), `worker` (pg-boss consumers: AI pipeline + notification cron — Dom's standard separate-cron-service shape), **managed Postgres**. Media on **Cloudflare R2** (S3-compatible, no egress fees) or AWS S3.
+- **Services:** `web` (Next.js: UI, API, SSE), `worker` (pg-boss consumers: AI pipeline + notification cron — the author's standard separate-cron-service shape), **managed Postgres**. Media on **Cloudflare R2** (S3-compatible, no egress fees) or AWS S3.
 - **Environments:** `production` and `staging` as Railway environments with separate DBs and separate AI keys (staging runs with Twilio env unset → NotificationLog-only delivery); PR preview deploys for the web service.
 - **CI/CD:** GitHub Actions — typecheck, lint, unit + integration tests (Postgres service container), Playwright E2E on the critical flows (offline capture → sync is the E2E that matters most), then Railway deploy on merge to main. Prisma migrations run as a release step before the new code serves traffic.
 - **Observability:** structured JSON logs with `request_id`; **Sentry** for client + server errors; a `/health` endpoint checking DB and queue depth; a small internal admin page for pipeline health (jobs pending/failed, AI confidence distribution, per-event token cost). Uptime via a free external pinger. At this scale that's the whole stack — Prometheus/Grafana would be decoration.
@@ -574,14 +584,14 @@ If the app ever becomes a multi-family product with compliance requirements:
 
 | Layer | Recommendation | Rationale | Alternatives considered |
 |---|---|---|---|
-| Front-end | **Next.js PWA** (TS, TanStack Query, Dexie/IndexedDB, Serwist SW) | One codebase, link-based install, all needed device APIs available, matches existing skill set (arnie PWA) | React Native (app-store overhead, second codebase); Flutter (weakest web story, new language) |
+| Front-end | **Next.js PWA** (TS, TanStack Query, Dexie/IndexedDB, Serwist SW) | One codebase, link-based install, all needed device APIs available, matches existing skill set (prior PWA experience) | React Native (app-store overhead, second codebase); Flutter (weakest web story, new language) |
 | Backend | **Node.js + TypeScript**, modular monolith (Next.js API + separate worker), strict 3-layer modules | Shared types/Zod schemas client↔server, existing conventions; Python adds a language boundary for no ML payoff | Python/FastAPI (justified only if custom ML existed); NestJS (heavier than needed) |
 | ORM / DB | **Prisma 7 (driver adapters) + PostgreSQL (Railway managed)** | Relational integrity for users/roles/schedules + JSONB for flexible event payloads; one DB also hosts the queue | DynamoDB (poor fit — relational access patterns, ad-hoc reporting, no aggregation ergonomics); MongoDB (loses transactional audit writes) |
-| AI — language | **Claude API** (Haiku 4.5 default, Sonnet for vision/low-confidence), tool-use structured output | Zero training data needed; structured extraction is a solved LLM task; proven pattern in SousIQ; <$0.01/event | **TensorFlow/PyTorch: wrong tool class — training frameworks for a no-training-data problem** (§6.1); OpenAI GPT (viable, less familiarity); Bedrock-hosted Claude (the compliance upgrade path) |
+| AI — language | **Claude API** (Haiku 4.5 default, Sonnet for vision/low-confidence), tool-use structured output | Zero training data needed; structured extraction is a solved LLM task; pattern proven in a prior project; <$0.01/event | **TensorFlow/PyTorch: wrong tool class — training frameworks for a no-training-data problem** (§6.1); OpenAI GPT (viable, less familiarity); Bedrock-hosted Claude (the compliance upgrade path) |
 | AI — speech | **OpenAI Whisper API** (+ Web Speech API for live on-device feedback) | Best accuracy/effort/cost (~$0.006/min); hybrid gives instant UX + reliable record | AssemblyAI (med vocab, BAA option); self-hosted faster-whisper (privacy hardening) |
 | AI — vision/OCR | **Claude vision** (in the normalize call) | One vendor, image+context in one request; handles label OCR + scene description | AWS Textract/Rekognition (overkill at this volume) |
 | Queue / jobs | **pg-boss** | No new infra; retries, backoff, cron included; behind an adapter for later SQS swap | BullMQ (+Redis), SQS (+AWS plumbing) — both deferred to scale-out |
-| Auth | **Auth.js (NextAuth)**, DB sessions, Google + magic link, invite-only | Instant revocation; multi-user RBAC — which CareCover's single-admin HMAC-cookie auth cannot express (a key reason for greenfield) | Clerk/Auth0 (monthly cost for 5 users); custom JWT (revocation pain) |
+| Auth | **Auth.js (NextAuth)**, DB sessions, Google + magic link, invite-only | Instant revocation; multi-user RBAC — which the prior app's single-admin HMAC-cookie auth cannot express (a key reason for greenfield) | Clerk/Auth0 (monthly cost for 5 users); custom JWT (revocation pain) |
 | Real-time | **SSE nudge + delta pull** | Correctness lives in pull; SSE is simple, proxy-friendly, auto-reconnecting | WebSockets (bidirectionality unneeded); Replicache/ElectricSQL/PowerSync (unneeded complexity at this conflict rate) |
 | Notifications | **Web Push (VAPID)** + **Twilio SMS** escalation, NotificationLog fallback when env unset | Free primary channel incl. iOS-installed PWA; SMS reliability for escalation; existing Twilio + A2P experience | FCM native (needs native app); email (too slow for care escalation) |
 | Storage (media) | **Cloudflare R2** (S3 API) | Cheap, no egress fees, presigned-URL flow | S3 (fine; the scale-out default) |
@@ -596,11 +606,11 @@ Effort assumes one experienced developer with AI-assisted coding; phases ship in
 
 **Phase 1 — Core logging MVP (~1.5–2 weeks).** Greenfield Next.js app on Railway; Auth.js with invites + roles; Prisma schema (the full Section 7 schema from day one — including audit, sync, and idempotency fields, since retrofitting sync columns is painful); text-entry event logging with category picker; manual templates with one-tap quick log; timeline view; audit writes on every mutation. *Family can start logging with structured templates immediately — no AI required to be useful.*
 
-**Phase 2 — Capture modalities + AI pipeline (~2 weeks).** Photo + voice-memo capture with presigned uploads; worker process + pg-boss; Whisper transcription; Claude normalize/classify/enrich with per-category schemas and confidence gate; needs-review UX; an **eval harness from day one** — a fixture set of real (anonymized) inputs with expected outputs, run on prompt changes, following the SousIQ nightly-eval pattern. *Voice memo in the kitchen becomes a structured med record.*
+**Phase 2 — Capture modalities + AI pipeline (~2 weeks).** Photo + voice-memo capture with presigned uploads; worker process + pg-boss; Whisper transcription; Claude normalize/classify/enrich with per-category schemas and confidence gate; needs-review UX; an **eval harness from day one** — a fixture set of real (anonymized) inputs with expected outputs, run on prompt changes, following a nightly-eval pattern proven in a prior project. *Voice memo in the kitchen becomes a structured med record.*
 
 **Phase 3 — Offline-first + sync (~1.5–2 weeks).** Service Worker offline shell; Dexie outbox + blob store; idempotent drain; delta-sync endpoint + cursor merge; SSE nudge; conflict flagging. The E2E gate: airplane-mode capture → reconnect → verify a single non-duplicated synced event. *(Sequenced after AI deliberately: the schema was sync-ready from Phase 1, but connected logging + AI proves product value before the hardest engineering is spent.)*
 
-**Phase 4 — Schedules, notifications, escalation (~1 week).** Schedule CRUD (rrule); cron evaluation in the worker; Web Push; schedule-linked quick-log chips with acknowledgment; Twilio SMS escalation with the NotificationLog env-unset fallback (start A2P 10DLC registration early — multi-week lead time, and per CareCover experience the campaign framing matters).
+**Phase 4 — Schedules, notifications, escalation (~1 week).** Schedule CRUD (rrule); cron evaluation in the worker; Web Push; schedule-linked quick-log chips with acknowledgment; Twilio SMS escalation with the NotificationLog env-unset fallback (start A2P 10DLC registration early — multi-week lead time, and per prior experience the campaign framing matters).
 
 **Phase 5 — Reporting & polish (~1–1.5 weeks).** Adherence rollups, mood trend charts, doctor-visit PDF/CSV export, review-queue refinements, template usage stats, (stretch) AI-proposed templates.
 
@@ -610,7 +620,7 @@ Effort assumes one experienced developer with AI-assisted coding; phases ship in
 
 ## Verification (per phase, when implementation begins)
 
-- **Phase 1:** Vitest unit + integration tests (DB-resetting, per CareCover convention); manual flow — invite a second user, log events under each role, confirm RBAC denials and audit rows.
+- **Phase 1:** Vitest unit + integration tests (DB-resetting, per existing convention); manual flow — invite a second user, log events under each role, confirm RBAC denials and audit rows.
 - **Phase 2:** eval harness fixture set (real anonymized inputs → expected `{category, structuredData}`) run on every prompt change; verify a voice memo end-to-end: record → sync → transcript → structured card.
 - **Phase 3:** Playwright E2E gate — airplane-mode capture → reconnect → exactly one non-duplicated event on a second device.
 - **Phase 4:** staging run with Twilio env unset — confirm Notification rows with `logged_only`; then prod smoke with one real SMS escalation.

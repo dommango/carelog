@@ -6,7 +6,7 @@ async function main() {
     update: {},
     create: {
       id: '00000000-0000-0000-0000-000000000001',
-      name: 'Mom',
+      name: 'Evelyn Sample',
       medications: [
         { name: 'Albuterol', dose: '2.5 mg', route: 'nebulizer', timing: 'as needed / every 4h' },
       ],
