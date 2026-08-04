@@ -8,6 +8,46 @@ import { renderToBuffer } from '@react-pdf/renderer';
 import * as React from 'react';
 import DoctorVisitReport from '@/components/DoctorVisitReport';
 
+// The patient name is user-controlled and lands inside a quoted
+// Content-Disposition filename. A bare quote ends the filename early and lets
+// extra parameters be injected (`filename="a"; x=y.csv"` is accepted verbatim).
+// CR/LF is not exploitable here — Node's Headers rejects it outright — but that
+// means an unsanitised name would throw and 500 the export instead.
+//
+// ASCII-only, deliberately: header values are ByteStrings, so a single
+// non-Latin-1 character (a Chinese or accented name) throws
+// "Cannot convert argument to a ByteString" and breaks the download entirely.
+// The unencoded `filename` is the ASCII fallback; `filename*` below carries the
+// real name per RFC 5987.
+function asciiFilenamePart(name: string): string {
+  const cleaned = name
+    .replace(/[^A-Za-z0-9 _-]/g, '-')
+    .replace(/-{2,}/g, '-')
+    .trim()
+    .slice(0, 60);
+  return cleaned || 'patient';
+}
+
+/**
+ * RFC 8187 percent-encoding for the ext-value. encodeURIComponent leaves
+ * `'()*!~` bare, and `'` is not an attr-char — it is the ext-value's own
+ * delimiter, so a patient named O'Brien would emit a literal quote inside the
+ * field. Most parsers tolerate it; it is still malformed.
+ */
+function encodeRfc8187(value: string): string {
+  return encodeURIComponent(value).replace(
+    /['()*!]/g,
+    (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`
+  );
+}
+
+/** `filename` for any client, `filename*` for those that understand UTF-8. */
+function contentDisposition(name: string, extension: string): string {
+  const ascii = `carelog-report-${asciiFilenamePart(name)}.${extension}`;
+  const utf8 = encodeRfc8187(`carelog-report-${name}.${extension}`);
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${utf8}`;
+}
+
 export async function GET(request: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) {
@@ -42,7 +82,7 @@ export async function GET(request: NextRequest) {
       return new Response(new Uint8Array(buffer), {
         headers: {
           'Content-Type': 'application/pdf',
-          'Content-Disposition': `attachment; filename="carelog-report-${data.patient.name}.pdf"`,
+          'Content-Disposition': contentDisposition(data.patient.name, 'pdf'),
         },
       });
     }
@@ -51,7 +91,7 @@ export async function GET(request: NextRequest) {
     return new Response(csv, {
       headers: {
         'Content-Type': 'text/csv',
-        'Content-Disposition': `attachment; filename="carelog-report-${data.patient.name}.csv"`,
+        'Content-Disposition': contentDisposition(data.patient.name, 'csv'),
       },
     });
   } catch (error) {

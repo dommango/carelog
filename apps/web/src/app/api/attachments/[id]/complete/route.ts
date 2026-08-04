@@ -1,7 +1,6 @@
 import { NextRequest } from 'next/server';
 import { auth } from '@/auth';
-import { getActor } from '@/lib/policy';
-import { markAttachmentUploaded } from '@/lib/services/events';
+import { getActorForPatient, can } from '@/lib/policy';
 import { prisma } from '@/lib/prisma';
 import { enqueue, AI_PROCESS_EVENT } from '@carelog/queue';
 import { NotFoundError } from '@/lib/errors';
@@ -13,11 +12,6 @@ export async function POST(
   const session = await auth();
   if (!session?.user?.id) {
     return new Response('Unauthorized', { status: 401 });
-  }
-
-  const actor = await getActor(session.user.id as string);
-  if (!actor) {
-    return new Response('Forbidden', { status: 403 });
   }
 
   const { id } = await params;
@@ -32,11 +26,20 @@ export async function POST(
       throw new NotFoundError();
     }
 
-    if (attachment.event.patientId !== actor.assignment.patientId) {
+    const patientId = attachment.event.patientId;
+
+    // Same gate as PUT /api/upload/[id]: resolved for this specific patient,
+    // and requiring the event-authoring permission so a read-only viewer
+    // cannot drive an attachment to completion.
+    const actor = await getActorForPatient(session.user.id as string, patientId);
+    if (!can(actor, 'event:create', { type: 'event', patientId })) {
       return new Response('Forbidden', { status: 403 });
     }
 
-    await markAttachmentUploaded(id);
+    // Deliberately does NOT mark the attachment uploaded. That stamp is the
+    // record that bytes were actually stored, so it belongs to the request that
+    // stored them (PUT /api/upload/[id]). Setting it here let any caller assert
+    // an upload had happened when it had not.
     await enqueue(AI_PROCESS_EVENT, { eventId: attachment.eventId });
 
     return Response.json({ ok: true });
