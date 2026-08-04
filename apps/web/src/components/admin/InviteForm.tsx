@@ -4,6 +4,7 @@ import { useActionState } from 'react';
 import { inviteAction, type AdminFormState } from '@/app/admin/actions';
 import { Field } from '@/components/admin/Field';
 import { FormAlert } from '@/components/admin/FormAlert';
+import { ROLE_LABELS } from '@/components/admin/role-labels';
 
 const initialState: AdminFormState = { error: null };
 
@@ -39,9 +40,11 @@ export function InviteForm({ patientId }: { patientId: string }) {
           defaultValue={(values.role as string) ?? 'caregiver'}
           className="cc-input"
         >
-          <option value="caregiver">Caregiver — can log care and see everything</option>
-          <option value="viewer">Viewer — can read the log, but not add to it</option>
-          <option value="admin">Admin — can also manage templates, schedules and people</option>
+          {ROLE_LABELS.map((role) => (
+            <option key={role.id} value={role.id}>
+              {role.label} — {role.can}
+            </option>
+          ))}
         </select>
       </Field>
 

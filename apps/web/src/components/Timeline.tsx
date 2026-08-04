@@ -294,15 +294,17 @@ export default function Timeline() {
                       type="button"
                       onClick={() => confirmEvent(event.id)}
                       disabled={busyId === event.id}
+                      aria-label={`${confirmLabel} — ${meta.label} entry`}
                       className="cc-btn cc-btn--primary"
                     >
                       <Icon name="check" size={16} />
-                      {error ? 'Try again' : 'Confirm'}
+                      {confirmLabel}
                     </button>
                     <button
                       type="button"
                       onClick={(clickEvent) => openEditor(event.id, clickEvent.currentTarget)}
                       disabled={busyId === event.id}
+                      aria-label={`Fix — ${meta.label} entry`}
                       className="cc-btn cc-btn--secondary"
                     >
                       Fix
@@ -423,6 +425,7 @@ export default function Timeline() {
                               type="button"
                               onClick={() => retrySync(event.id, failure.itemId)}
                               disabled={isBusy}
+                              aria-label={`${failedSyncMessage(failure)} — ${meta.label} entry`}
                               className="cc-btn cc-btn--block"
                               style={{ background: 'var(--alert-tint)', color: 'var(--accent-deep)' }}
                             >
@@ -453,6 +456,7 @@ export default function Timeline() {
                               type="button"
                               onClick={(clickEvent) => openEditor(event.id, clickEvent.currentTarget)}
                               disabled={isBusy}
+                              aria-label={`Fix this entry — ${meta.label}`}
                               className="cc-btn cc-btn--secondary"
                             >
                               Fix this entry
