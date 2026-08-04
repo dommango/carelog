@@ -5,7 +5,7 @@ import Link from 'next/link';
 import type { MealHydrationDay, MoodPoint } from '@/lib/services/reports';
 import MoodTrendChart from './reports/MoodTrendChart';
 import MealHydrationChart from './reports/MealHydrationChart';
-import { formatReportDate, parseDayKey } from './reports/report-dates';
+import { formatDayKey, formatReportDate, parseDayKey } from './reports/report-dates';
 
 type AdherenceRow = {
   scheduleId: string;
@@ -57,6 +57,7 @@ function buildQuery(patientId: string | undefined, start: string, end: string) {
   if (patientId) params.set('patientId', patientId);
   params.set('start', bounds.start.toISOString());
   params.set('end', bounds.end.toISOString());
+  params.set('tzOffsetMinutes', String(new Date().getTimezoneOffset()));
   return params.toString();
 }
 
@@ -100,7 +101,7 @@ export default function ReportsDashboard({
 
   const status = loading
     ? 'Updating the report…'
-    : `Showing ${formatReportDate(shownRange.start)} to ${formatReportDate(shownRange.end)}.`;
+    : `Showing ${formatDayKey(shownRange.start)} to ${formatDayKey(shownRange.end)}.`;
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-4">

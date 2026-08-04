@@ -89,6 +89,7 @@ export const reportQuerySchema = z.object({
   patientId: z.string().uuid().optional(),
   start: z.string().datetime(),
   end: z.string().datetime(),
+  tzOffsetMinutes: z.coerce.number().int().min(-840).max(840).optional(),
   category: z.nativeEnum(EventCategory).optional(),
   authorId: z.string().uuid().optional(),
 });
