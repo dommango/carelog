@@ -31,7 +31,7 @@
     "resend": "^6.17.1",
     "rrule": "^2.8.1",
     "serwist": "^9.5.11",
-    "zod": "^4.4.3"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.12.1",
